@@ -1,14 +1,23 @@
 //
 // DX11 ForwardLight - Ambient Light
 //
+// HLSL-Development-Cookbook
+//	- Hemispheric ambient light
+// 
 
 #include "../../../../../Common/Common/common.h"
 using namespace common;
 #include "../../../../../Common/Graphic11/graphic11.h"
 #include "../../../../../Common/Framework11/framework11.h"
 
-
 using namespace graphic;
+
+struct sCBDirLightPS
+{
+	XMVECTOR AmbientDown;
+	XMVECTOR AmbientRange;
+};
+
 
 class cViewer : public framework::cGameMain
 {
@@ -29,11 +38,8 @@ public:
 public:
 	cCamera3D m_camera;
 	cGridLine m_ground;
-	cDbgArrow m_dbgArrow;
-	cDbgBox m_dbgBox;
-	Transform m_world;
-	cMaterial m_mtrl;
 	cModel m_model;
+	cConstantBuffer<sCBDirLightPS> m_cbDirLight;
 
 	sf::Vector2i m_curPos;
 	Plane m_groundPlane1, m_groundPlane2;
@@ -44,7 +50,6 @@ public:
 };
 
 INIT_FRAMEWORK(cViewer);
-
 
 
 cViewer::cViewer()
@@ -80,9 +85,6 @@ bool cViewer::OnInit()
 	m_camera.SetViewPort(WINSIZE_X, WINSIZE_Y);
 
 	m_ground.Create(m_renderer, 10, 10, 1, 1);
-	m_dbgBox.Create(m_renderer);
-	cBoundingBox bbox(Vector3(0, 0, 0), Vector3(1, 1, 1), Quaternion());
-	m_dbgBox.SetBox(bbox);
 
 	GetMainLight().Init(cLight::LIGHT_DIRECTIONAL,
 		Vector4(0.2f, 0.2f, 0.2f, 1), Vector4(0.9f, 0.9f, 0.9f, 1),
@@ -92,11 +94,11 @@ bool cViewer::OnInit()
 	GetMainLight().SetPosition(lightPos);
 	GetMainLight().SetDirection((lightLookat - lightPos).Normal());
 
-	m_mtrl.InitWhite();
-
 	m_model.Create(m_renderer, 0, "chessqueen.x");
 	m_model.m_transform.pos.y = 0.1f;
 	m_model.m_transform.scale *= 10.f;
+
+	m_cbDirLight.Create(m_renderer);
 
 	return true;
 }
@@ -109,10 +111,25 @@ void cViewer::OnUpdate(const float deltaSeconds)
 	GetMainCamera().Update(deltaSeconds);
 }
 
+const Vector3 GammaToLinear(const Vector3& color)
+{
+	return Vector3(color.x * color.x, color.y * color.y, color.z * color.z);
+}
+
 
 void cViewer::OnRender(const float deltaSeconds)
 {
 	cAutoCam cam(&m_camera);
+
+	if (m_model.IsLoadFinish())
+	{
+		for (auto &mesh : m_model.m_model->m_meshes)
+		{
+			mesh->m_shader = m_renderer.m_shaderMgr.LoadShader(m_renderer, "../Media/forwardlight_ambientlight/hlsl.fxo"
+				, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
+			mesh->m_isBeginShader = false;
+		}
+	}
 
 	// Render
 	if (m_renderer.ClearScene())
@@ -123,6 +140,20 @@ void cViewer::OnRender(const float deltaSeconds)
 		GetMainLight().Bind(m_renderer);
 
 		m_ground.Render(m_renderer);
+
+		cShader11 *shader = m_renderer.m_shaderMgr.LoadShader(m_renderer, "../Media/forwardlight_ambientlight/hlsl.fxo"
+			, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
+
+		shader->SetTechnique("Unlit");
+		shader->Begin();
+		shader->BeginPass(m_renderer, 0);
+
+		Vector3 vAmbientLowerColor = Vector3(0.1f, 0.5f, 0.1f);
+		Vector3 vAmbientUpperColor = Vector3(0.1f, 0.2f, 0.5f);
+		m_cbDirLight.m_v->AmbientDown = XMLoadFloat3((XMFLOAT3*)&GammaToLinear(vAmbientLowerColor));
+		m_cbDirLight.m_v->AmbientRange = XMLoadFloat3((XMFLOAT3*)&(GammaToLinear(vAmbientUpperColor) - GammaToLinear(vAmbientLowerColor)));
+		m_cbDirLight.Update(m_renderer, 6);
+
 		m_model.Render(m_renderer);
 
 		m_renderer.RenderFPS();

@@ -3,4 +3,7 @@
   <ItemGroup>
     <ClCompile Include="forward_ambientlight.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\Media\forwardlight_ambientlight\hlsl.fx" />
+  </ItemGroup>
 </Project>
