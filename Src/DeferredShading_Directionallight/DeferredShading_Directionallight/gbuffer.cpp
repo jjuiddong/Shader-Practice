@@ -158,11 +158,13 @@ bool cGBuffer::Create(cRenderer &renderer, const UINT width, const UINT height)
 	//V_RETURN(device->CreateBuffer(&cbDesc, NULL, &m_pGBufferUnpackCB));
 	//DXUT_SetDebugName(m_pGBufferUnpackCB, "GBufferUnpack CB");
 
+	m_cbGBuffer.Create(renderer);
+
 	return true;
 }
 
 
-void cGBuffer::Begin(cRenderer &renderer)
+bool cGBuffer::Begin(cRenderer &renderer)
 {
 	ID3D11DeviceContext *devContext = renderer.GetDevContext();
 
@@ -180,6 +182,7 @@ void cGBuffer::Begin(cRenderer &renderer)
 	devContext->OMSetRenderTargets(3, rt, m_DepthStencilDSV);
 
 	devContext->OMSetDepthStencilState(m_DepthStencilState, 1);
+	return true;
 }
 
 
@@ -209,23 +212,44 @@ void cGBuffer::PrepareForUnpack(cRenderer &renderer)
 {
 	ID3D11DeviceContext *devContext = renderer.GetDevContext();
 
-	//HRESULT hr;
+	const Matrix44 proj = GetMainCamera().GetProjectionMatrix();
+	const Vector4 v1(1.0f / proj.m[0][0]
+		, 1.0f / proj.m[1][1]
+		, proj.m[3][2]
+		, proj.m[2][2]);
 
-	//// Fill the GBuffer unpack constant buffer
-	//D3D11_MAPPED_SUBRESOURCE MappedResource;
-	//V(devContext->Map(m_pGBufferUnpackCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
-	//CB_GBUFFER_UNPACK* pGBufferUnpackCB = (CB_GBUFFER_UNPACK*)MappedResource.pData;
-	//const D3DXMATRIX* pProj = g_Camera.GetProjMatrix();
-	//pGBufferUnpackCB->PerspectiveValues.x = 1.0f / pProj->m[0][0];
-	//pGBufferUnpackCB->PerspectiveValues.y = 1.0f / pProj->m[1][1];
-	//pGBufferUnpackCB->PerspectiveValues.z = pProj->m[3][2];
-	//pGBufferUnpackCB->PerspectiveValues.w = -pProj->m[2][2];
-	//D3DXMATRIX matViewInv;
-	//D3DXMatrixInverse(&matViewInv, NULL, g_Camera.GetViewMatrix());
-	//D3DXMatrixTranspose(&pGBufferUnpackCB->ViewInv, &matViewInv);
-	//devContext->Unmap(m_pGBufferUnpackCB, 0);
+	m_cbGBuffer.m_v->perspectiveValue = XMLoadFloat4((XMFLOAT4*)&v1);
+	m_cbGBuffer.m_v->invView = GetMainCamera().GetViewMatrix().Inverse().GetMatrixXM();
+	m_cbGBuffer.Update(renderer, 7);
+}
 
-	//devContext->PSSetConstantBuffers(0, 1, &m_pGBufferUnpackCB);
+
+void cGBuffer::Render(cRenderer &renderer)
+{
+	ID3D11DeviceContext *devContext = renderer.GetDevContext();
+
+	ID3D11ShaderResourceView* arrViews[4] = {m_DepthStencilSRV, m_ColorSpecIntensitySRV, m_NormalSRV, m_SpecPowerSRV};
+	devContext->PSSetShaderResources(0, 4, arrViews);
+
+	//devContext->PSSetSamplers(0, 1, &g_pSampPoint);
+
+	devContext->IASetInputLayout(NULL);
+	devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
+	devContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+	// Set the shaders
+	//devContext->VSSetShader(g_pGBufferVisVertexShader, NULL, 0);
+	//devContext->GSSetShader(NULL, NULL, 0);
+	//devContext->PSSetShader(g_pGBufferVisPixelShader, NULL, 0);
+
+	devContext->Draw(16, 0);
+
+	// Cleanup
+	//devContext->VSSetShader(NULL, NULL, 0);
+	//devContext->PSSetShader(NULL, NULL, 0);
+
+	ZeroMemory(arrViews, sizeof(arrViews));
+	devContext->PSSetShaderResources(0, 4, arrViews);
 }
 
 

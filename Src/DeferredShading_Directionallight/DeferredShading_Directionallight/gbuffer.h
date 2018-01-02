@@ -6,6 +6,13 @@
 #pragma once
 
 
+struct sCbGBuffer
+{
+	XMVECTOR perspectiveValue;
+	XMMATRIX invView;
+};
+
+
 class cGBuffer
 {
 public:
@@ -13,9 +20,10 @@ public:
 	virtual ~cGBuffer();
 
 	bool Create(graphic::cRenderer &renderer, const UINT width, const UINT height );
-	void Begin(graphic::cRenderer &renderer);
+	bool Begin(graphic::cRenderer &renderer);
 	void End(graphic::cRenderer &renderer);
 	void PrepareForUnpack(graphic::cRenderer &renderer);
+	void Render(graphic::cRenderer &renderer);
 	void Clear();
 
 
@@ -40,4 +48,6 @@ public:
 	ID3D11ShaderResourceView* m_SpecPowerSRV;
 
 	ID3D11DepthStencilState *m_DepthStencilState;
+
+	graphic::cConstantBuffer<sCbGBuffer> m_cbGBuffer;
 };

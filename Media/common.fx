@@ -116,6 +116,7 @@ cbuffer cbLight : register(b1)
 	float4 gLight_Specular;
 	float3 gLight_Direction;
 	float3 gLight_PosW;
+	float3 gLight_SpecIntensity;
 }
 
 

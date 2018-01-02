@@ -3,12 +3,6 @@
 
 static const float2 g_SpecPowerRange = { 10.0, 250.0 };
 
-cbuffer cbPerObjectPS : register(b0) // Model pixel shader constants
-{
-	float specExp : packoffset(c0);
-	float specIntensity : packoffset(c0.y);
-}
-
 
 struct VSOUT_DIRLIGHT
 {
@@ -70,8 +64,8 @@ PS_GBUFFER_OUT PackGBuffer(float3 BaseColor, float3 Normal, float SpecIntensity,
 
 	// Pack all the data into the GBuffer structure
 	Out.ColorSpecInt = float4(BaseColor.rgb, SpecIntensity);
-	Out.Normal = float4(Normal * 0.5 + 0.5, 0.0);
-	Out.SpecPow = float4(SpecPowerNorm, 0.0, 0.0, 0.0);
+	Out.Normal = float4(Normal * 0.5 + 0.5, 1.0);
+	Out.SpecPow = float4(SpecPowerNorm, 0.0, 0.0, 1.0);
 
 	return Out;
 }
@@ -82,7 +76,7 @@ PS_GBUFFER_OUT PS(VSOUT_DIRLIGHT In)
 	float3 DiffuseColor = txDiffuse.Sample(samLinear, In.Tex);
 	DiffuseColor *= DiffuseColor;
 
-	return PackGBuffer(DiffuseColor, normalize(In.Normal), specIntensity, specExp);
+	return PackGBuffer(DiffuseColor, normalize(In.Normal), gLight_Intensity.y, gLight_Intensity.x);
 }
 
 

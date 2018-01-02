@@ -26,6 +26,7 @@ cbuffer cbLight : register(b1)
     float4  gLight_Specular;            // Offset:   32, size:   16
     float3  gLight_Direction;           // Offset:   48, size:   12
     float3  gLight_PosW;                // Offset:   64, size:   12
+    float3  gLight_Intensity;           // Offset:   80, size:   12
 }
 
 cbuffer cbMaetrial : register(b2)
@@ -52,10 +53,10 @@ cbuffer cbSkinning : register(b5)
     float4x4 gPalette[64];              // Offset:    0, size: 4096
 }
 
-cbuffer cbGBufferUnpack : register(b0)
+cbuffer cbGBufferUnpack : register(b7)
 {
-    float4  PerspectiveValues : packoffset(c0.x);// Offset:    0, size:   16
-    float4x4 ViewInv : packoffset(c1.x);// Offset:   16, size:   64
+    float4  PerspectiveValues;          // Offset:    0, size:   16
+    float4x4 ViewInv;                   // Offset:   16, size:   64
 }
 
 //
@@ -123,8 +124,12 @@ Texture2D DepthTexture;
 Texture2D ColorSpecIntTexture;
 Texture2D NormalTexture;
 Texture2D SpecPowTexture;
-SamplerState PointSampler
+SamplerState samPoint
 {
+    Filter   = uint(MIN_MAG_MIP_POINT /* 0 */);
+    AddressU = uint(CLAMP /* 3 */);
+    AddressV = uint(CLAMP /* 3 */);
+    BorderColor = float4(1, 1, 1, 1);
 };
 
 //
@@ -178,31 +183,31 @@ fxgroup
                 //   o1.x <- <VS return value>.UV.x; o1.y <- <VS return value>.UV.y; 
                 //   o0.x <- <VS return value>.Position.x; o0.y <- <VS return value>.Position.y; o0.z <- <VS return value>.Position.z; o0.w <- <VS return value>.Position.w
                 //
-                #line 10 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
+                #line 18 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
                 mov x0[0].xy, l(-0.750000,-0.750000,0,0)
                 mov x0[1].xy, l(-0.250000,-0.750000,0,0)
                 mov x0[2].xy, l(0.250000,-0.750000,0,0)
                 mov x0[3].xy, l(0.750000,-0.750000,0,0)
                 
-                #line 17
+                #line 25
                 mov x1[0].xy, l(1.000000,1.000000,0,0)
                 mov x1[1].xy, l(1.000000,-1.000000,0,0)
                 mov x1[2].xy, l(-1.000000,1.000000,0,0)
                 mov x1[3].xy, l(-1.000000,-1.000000,0,0)
                 
-                #line 24
+                #line 32
                 mov x2[0].xy, l(1.000000,0,0,0)
                 mov x2[1].xy, l(1.000000,1.000000,0,0)
                 mov x2[2].xy, l(0,0,0,0)
                 mov x2[3].xy, l(0,1.000000,0,0)
                 
-                #line 31
+                #line 39
                 mov x3[0].xyzw, l(1.000000,0,0,0)
                 mov x3[1].xyzw, l(0,1.000000,0,0)
                 mov x3[2].xyzw, l(0,0,1.000000,0)
                 mov x3[3].xyzw, l(0,0,0,1.000000)
                 
-                #line 101
+                #line 109
                 mov r0.x, l(4)
                 udiv null, r0.x, v0.x, r0.x
                 mov r0.xy, x1[r0.x + 0].xyxx
@@ -248,12 +253,12 @@ fxgroup
                 //
                 // Name                                 Type  Format         Dim Slot Elements
                 // ------------------------------ ---------- ------- ----------- ---- --------
-                // PointSampler                      sampler      NA          NA    0        1
+                // samPoint                          sampler      NA          NA    4        1
                 // DepthTexture                      texture   float          2d    0        1
                 // ColorSpecIntTexture               texture  float4          2d    1        1
                 // NormalTexture                     texture  float3          2d    2        1
                 // SpecPowTexture                    texture  float4          2d    3        1
-                // cbGBufferUnpack                   cbuffer      NA          NA    0        1
+                // cbGBufferUnpack                   cbuffer      NA          NA    7        1
                 //
                 //
                 //
@@ -274,8 +279,8 @@ fxgroup
                 //
                 ps_5_0
                 dcl_globalFlags refactoringAllowed | skipOptimization
-                dcl_constantbuffer cb0[1], immediateIndexed
-                dcl_sampler s0, mode_default
+                dcl_constantbuffer cb7[1], immediateIndexed
+                dcl_sampler s4, mode_default
                 dcl_resource_texture2d (float,float,float,float) t0
                 dcl_resource_texture2d (float,float,float,float) t1
                 dcl_resource_texture2d (float,float,float,float) t2
@@ -291,26 +296,26 @@ fxgroup
                 //   v2.x <- In.sampMask.x; v2.y <- In.sampMask.y; v2.z <- In.sampMask.z; v2.w <- In.sampMask.w; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 111 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
+                #line 119 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
                 nop 
                 
-                #line 84
-                sample_indexable(texture2d)(float,float,float,float) r0.x, v1.xyxx, t0.xyzw, s0
+                #line 92
+                sample_indexable(texture2d)(float,float,float,float) r0.x, v1.xyxx, t0.xyzw, s4
                 mov r0.x, r0.x  // r0.x <- depth
                 nop 
                 mov r0.x, r0.x
                 
-                #line 56
-                add r0.x, r0.x, cb0[0].w
-                div r0.x, cb0[0].z, r0.x  // r0.x <- linearDepth
+                #line 64
+                add r0.x, r0.x, cb7[0].w
+                div r0.x, cb7[0].z, r0.x  // r0.x <- linearDepth
                 mov r0.x, r0.x  // r0.x <- <ConvertZToLinearDepth return value>
                 
-                #line 85
+                #line 93
                 mov r0.x, r0.x  // r0.x <- Out.LinearDepth
-                sample_indexable(texture2d)(float,float,float,float) r1.xyzw, v1.xyxx, t1.xyzw, s0  // r1.x <- baseColorSpecInt.x; r1.y <- baseColorSpecInt.y; r1.z <- baseColorSpecInt.z; r1.w <- baseColorSpecInt.w
+                sample_indexable(texture2d)(float,float,float,float) r1.xyzw, v1.xyxx, t1.xyzw, s4  // r1.x <- baseColorSpecInt.x; r1.y <- baseColorSpecInt.y; r1.z <- baseColorSpecInt.z; r1.w <- baseColorSpecInt.w
                 mov r1.xyz, r1.xyzx  // r1.x <- Out.Color.x; r1.y <- Out.Color.y; r1.z <- Out.Color.z
                 mov r0.z, r1.w  // r0.z <- Out.SpecIntensity
-                sample_indexable(texture2d)(float,float,float,float) r2.xyz, v1.xyxx, t2.xyzw, s0
+                sample_indexable(texture2d)(float,float,float,float) r2.xyz, v1.xyxx, t2.xyzw, s4
                 mov r2.xyz, r2.xyzx  // r2.x <- Out.Normal.x; r2.y <- Out.Normal.y; r2.z <- Out.Normal.z
                 mul r2.xyz, r2.xyzx, l(2.000000, 2.000000, 2.000000, 0.000000)
                 mov r3.xyz, l(-1.000000,-1.000000,-1.000000,-0.000000)
@@ -318,7 +323,7 @@ fxgroup
                 dp3 r0.w, r2.xyzx, r2.xyzx
                 rsq r0.w, r0.w
                 mul r2.xyz, r0.wwww, r2.xyzx
-                sample_indexable(texture2d)(float,float,float,float) r0.y, v1.xyxx, t3.yxzw, s0
+                sample_indexable(texture2d)(float,float,float,float) r0.y, v1.xyxx, t3.yxzw, s4
                 mov r0.y, r0.y  // r0.y <- Out.SpecPow
                 mov r0.x, r0.x  // r0.x <- <UnpackGBuffer return value>.LinearDepth
                 mov r0.y, r0.y  // r0.y <- <UnpackGBuffer return value>.SpecPow
@@ -326,7 +331,7 @@ fxgroup
                 mov r1.xyz, r1.xyzx  // r1.x <- <UnpackGBuffer return value>.Color.x; r1.y <- <UnpackGBuffer return value>.Color.y; r1.z <- <UnpackGBuffer return value>.Color.z
                 mov r2.xyz, r2.xyzx  // r2.x <- <UnpackGBuffer return value>.Normal.x; r2.y <- <UnpackGBuffer return value>.Normal.y; r2.z <- <UnpackGBuffer return value>.Normal.z
                 
-                #line 111
+                #line 119
                 mov r1.xyz, r1.xyzx  // r1.x <- gbd.Color.x; r1.y <- gbd.Color.y; r1.z <- gbd.Color.z
                 mov r2.xyz, r2.xyzx  // r2.x <- gbd.Normal.x; r2.y <- gbd.Normal.y; r2.z <- gbd.Normal.z
                 mov r0.xyz, r0.xyzx  // r0.x <- gbd.LinearDepth; r0.y <- gbd.SpecPow; r0.z <- gbd.SpecIntensity

@@ -1,7 +1,7 @@
 //
 // FX Version: fx_5_0
 //
-// 8 local buffer(s)
+// 7 local buffer(s)
 //
 cbuffer $Globals
 {
@@ -26,6 +26,7 @@ cbuffer cbLight : register(b1)
     float4  gLight_Specular;            // Offset:   32, size:   16
     float3  gLight_Direction;           // Offset:   48, size:   12
     float3  gLight_PosW;                // Offset:   64, size:   12
+    float3  gLight_Intensity;           // Offset:   80, size:   12
 }
 
 cbuffer cbMaetrial : register(b2)
@@ -50,12 +51,6 @@ cbuffer cbClipPlane : register(b4)
 cbuffer cbSkinning : register(b5)
 {
     float4x4 gPalette[64];              // Offset:    0, size: 4096
-}
-
-cbuffer cbPerObjectPS : register(b0)
-{
-    float   specExp : packoffset(c0.x); // Offset:    0, size:    4
-    float   specIntensity : packoffset(c0.y);// Offset:    4, size:    4
 }
 
 //
@@ -220,7 +215,7 @@ fxgroup
                 //   o1.x <- <VS return value>.Normal.x; o1.y <- <VS return value>.Normal.y; o1.z <- <VS return value>.Normal.z; 
                 //   o0.x <- <VS return value>.Pos.x; o0.y <- <VS return value>.Pos.y; o0.z <- <VS return value>.Pos.z; o0.w <- <VS return value>.Pos.w
                 //
-                #line 38 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\deferredshading.fx"
+                #line 32 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\deferredshading.fx"
                 mov r0.xyzw, cb0[0].xyzw  // r0.x <- mWorld._m00; r0.y <- mWorld._m10; r0.z <- mWorld._m20; r0.w <- mWorld._m30
                 mov r1.xyzw, cb0[1].xyzw  // r1.x <- mWorld._m01; r1.y <- mWorld._m11; r1.z <- mWorld._m21; r1.w <- mWorld._m31
                 mov r2.xyzw, cb0[2].xyzw  // r2.x <- mWorld._m02; r2.y <- mWorld._m12; r2.z <- mWorld._m22; r2.w <- mWorld._m32
@@ -255,7 +250,7 @@ fxgroup
                 mul r2.xyz, r0.wwww, r3.xyzx  // r2.x <- output.toEye.x; r2.y <- output.toEye.y; r2.z <- output.toEye.z
                 dp4 r0.w, r4.xyzw, cb4[0].xyzw  // r0.w <- output.clip
                 
-                #line 50
+                #line 44
                 mov o0.xyzw, r5.xyzw
                 mov o3.xyzw, r5.xyzw
                 mov o1.xyz, r0.xyzx
@@ -285,14 +280,7 @@ fxgroup
                 //   float4 gLight_Specular;            // Offset:   32 Size:    16 [unused]
                 //   float3 gLight_Direction;           // Offset:   48 Size:    12 [unused]
                 //   float3 gLight_PosW;                // Offset:   64 Size:    12 [unused]
-                //
-                // }
-                //
-                // cbuffer cbPerObjectPS
-                // {
-                //
-                //   float specExp;                     // Offset:    0 Size:     4
-                //   float specIntensity;               // Offset:    4 Size:     4
+                //   float3 gLight_Intensity;           // Offset:   80 Size:    12
                 //
                 // }
                 //
@@ -303,7 +291,6 @@ fxgroup
                 // ------------------------------ ---------- ------- ----------- ---- --------
                 // samLinear                         sampler      NA          NA    0        1
                 // txDiffuse                         texture  float4          2d    0        1
-                // cbPerObjectPS                     cbuffer      NA          NA    0        1
                 // cbLight                           cbuffer      NA          NA    1        1
                 //
                 //
@@ -331,8 +318,7 @@ fxgroup
                 //
                 ps_5_0
                 dcl_globalFlags refactoringAllowed | skipOptimization
-                dcl_constantbuffer cb1[1], immediateIndexed
-                dcl_constantbuffer cb0[1], immediateIndexed
+                dcl_constantbuffer cb1[6], immediateIndexed
                 dcl_sampler s0, mode_default
                 dcl_resource_texture2d (float,float,float,float) t0
                 dcl_input_ps linear v1.xyz
@@ -357,7 +343,7 @@ fxgroup
                 #line 4 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\deferredshading.fx"
                 mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
                 
-                #line 82
+                #line 76
                 sample_indexable(texture2d)(float,float,float,float) r1.xyz, v2.xyxx, t0.xyzw, s0
                 mov r1.xyz, r1.xyzx  // r1.x <- DiffuseColor.x; r1.y <- DiffuseColor.y; r1.z <- DiffuseColor.z
                 mul r1.xyz, r1.xyzx, r1.xyzx
@@ -366,28 +352,28 @@ fxgroup
                 dp3 r0.z, v1.xyzx, v1.xyzx
                 rsq r0.z, r0.z
                 mul r2.xyz, r0.zzzz, v1.xyzx
-                mov r1.w, cb0[0].y
-                mov r0.z, cb0[0].x
+                mov r1.w, cb1[5].y
+                mov r0.z, cb1[5].x
                 
-                #line 69
+                #line 63
                 mov r0.x, -r0.x
                 add r0.x, r0.x, r0.z
                 div r0.x, r0.x, r0.y
                 max r0.x, r0.x, l(0.000100)  // r0.x <- SpecPowerNorm
                 
-                #line 72
+                #line 66
                 mov r1.xyz, r1.xyzx  // r1.x <- Out.ColorSpecInt.x; r1.y <- Out.ColorSpecInt.y; r1.z <- Out.ColorSpecInt.z
                 mov r1.w, r1.w  // r1.w <- Out.ColorSpecInt.w
                 mul r2.xyz, r2.xyzx, l(0.500000, 0.500000, 0.500000, 0.000000)
                 add r2.xyz, r2.xyzx, l(0.500000, 0.500000, 0.500000, 0.000000)  // r2.x <- Out.Normal.x; r2.y <- Out.Normal.y; r2.z <- Out.Normal.z
-                mov r2.w, l(0)  // r2.w <- Out.Normal.w
-                mov r0.yzw, l(0,0,0,0)
+                mov r2.w, l(1.000000)  // r2.w <- Out.Normal.w
+                mov r0.yzw, l(0,0,0,1.000000)
                 mov r0.xyzw, r0.xyzw  // r0.x <- Out.SpecPow.x; r0.y <- Out.SpecPow.y; r0.z <- Out.SpecPow.z; r0.w <- Out.SpecPow.w
                 mov r1.xyzw, r1.xyzw  // r1.x <- <PackGBuffer return value>.ColorSpecInt.x; r1.y <- <PackGBuffer return value>.ColorSpecInt.y; r1.z <- <PackGBuffer return value>.ColorSpecInt.z; r1.w <- <PackGBuffer return value>.ColorSpecInt.w
                 mov r2.xyzw, r2.xyzw  // r2.x <- <PackGBuffer return value>.Normal.x; r2.y <- <PackGBuffer return value>.Normal.y; r2.z <- <PackGBuffer return value>.Normal.z; r2.w <- <PackGBuffer return value>.Normal.w
                 mov r0.xyzw, r0.xyzw  // r0.x <- <PackGBuffer return value>.SpecPow.x; r0.y <- <PackGBuffer return value>.SpecPow.y; r0.z <- <PackGBuffer return value>.SpecPow.z; r0.w <- <PackGBuffer return value>.SpecPow.w
                 
-                #line 85
+                #line 79
                 mov o0.xyzw, r1.xyzw
                 mov o1.xyzw, r2.xyzw
                 mov o2.xyzw, r0.xyzw

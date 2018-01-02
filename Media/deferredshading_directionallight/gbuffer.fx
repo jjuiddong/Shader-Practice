@@ -5,7 +5,15 @@ Texture2D<float> DepthTexture         : register(t0);
 Texture2D<float4> ColorSpecIntTexture : register(t1);
 Texture2D<float3> NormalTexture       : register(t2);
 Texture2D<float4> SpecPowTexture      : register(t3);
-SamplerState PointSampler             : register(s0);
+
+SamplerState samPoint : register(s4)
+{
+	Filter = MIN_MAG_MIP_POINT;
+	AddressU = Clamp;
+	AddressV = Clamp;
+	BorderColor = float4(1, 1, 1, 1);
+};
+
 
 static float2 arrOffsets[4] = {
 	float2(-0.75, -0.75),
@@ -36,10 +44,10 @@ static const float4 arrMask[4] = {
 };
 
 
-cbuffer cbGBufferUnpack : register(b0)
+cbuffer cbGBufferUnpack : register(b7)
 {
-	float4 PerspectiveValues : packoffset(c0);
-	float4x4 ViewInv         : packoffset(c1);
+	float4 PerspectiveValues;
+	matrix ViewInv;
 }
 
 
@@ -81,14 +89,14 @@ SURFACE_DATA UnpackGBuffer(float2 UV)
 {
 	SURFACE_DATA Out;
 
-	float depth = DepthTexture.Sample(PointSampler, UV.xy).x;
+	float depth = DepthTexture.Sample(samPoint, UV.xy).x;
 	Out.LinearDepth = ConvertZToLinearDepth(depth);
-	float4 baseColorSpecInt = ColorSpecIntTexture.Sample(PointSampler, UV.xy);
+	float4 baseColorSpecInt = ColorSpecIntTexture.Sample(samPoint, UV.xy);
 	Out.Color = baseColorSpecInt.xyz;
 	Out.SpecIntensity = baseColorSpecInt.w;
-	Out.Normal = NormalTexture.Sample(PointSampler, UV.xy).xyz;
+	Out.Normal = NormalTexture.Sample(samPoint, UV.xy).xyz;
 	Out.Normal = normalize(Out.Normal * 2.0 - 1.0);
-	Out.SpecPow = SpecPowTexture.Sample(PointSampler, UV.xy).x;
+	Out.SpecPow = SpecPowTexture.Sample(samPoint, UV.xy).x;
 
 	return Out;
 }
@@ -133,7 +141,7 @@ VS_OUTPUT TextureVisVS(uint VertexID : SV_VertexID)
 
 float4 TextureVisPS(VS_OUTPUT In) : SV_TARGET
 {
-	return float4(DepthTexture.Sample(PointSampler, In.UV.xy).x, 0.0, 0.0, 1.0);
+	return float4(DepthTexture.Sample(samPoint, In.UV.xy).x, 0.0, 0.0, 1.0);
 }
 
 

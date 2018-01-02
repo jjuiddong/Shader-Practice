@@ -1,5 +1,5 @@
 //
-// DX11 Diferred Shading - Directional Light
+// DX11 Deferred Shading - Directional Light
 //
 // HLSL-Development-Cookbook
 //	- Directional light
@@ -13,15 +13,16 @@ using namespace common;
 
 using namespace graphic;
 
-struct sCBCapsuleLightPS
+
+struct sCbDirightPS
 {
-	XMVECTOR length;
-	XMVECTOR range;
+	XMVECTOR AmbientDown;
+	XMVECTOR AmbientRange;
 };
 
-
-static const char *g_hlslPath = "../Media/diferredlight_directionallight/hlsl.fxo";
-static const char *g_diferredPath = "../Media/deferredshading_directionallight/deferredshading.fxo";
+static const char *g_hlslPath = "../Media/deferredshading_directionallight/hlsl.fxo";
+static const char *g_deferredShaderPath = "../Media/deferredshading_directionallight/deferredshading.fxo";
+static const char *g_gbuffShaderPath = "../Media/deferredshading_directionallight/gbuffer.fxo";
 
 class cViewer : public framework::cGameMain
 {
@@ -46,13 +47,16 @@ public:
 	cImGui m_gui;
 	cGBuffer m_gbuff;
 
-	cConstantBuffer<sCBCapsuleLightPS> m_cbCapsuleLight;
-	Vector3 m_capsuleLightLength;
-	Vector3 m_capuselLightRange;
+	cConstantBuffer<sCbDirightPS> m_cbDirLight;
+	Vector3 m_ambientDown;
+	Vector3 m_ambientUp;
+	ID3D11DepthStencilState* m_pNoDepthWriteLessStencilMaskState;
 
 	int m_renderType; //0=new, 1=old
 	bool m_isAnimate;
 	Vector3 m_lightPos;
+	Vector3 m_capsuleLightLength;
+	Vector3 m_capuselLightRange;
 
 	sf::Vector2i m_mousePos;
 	float m_moveLen;
@@ -68,6 +72,7 @@ cViewer::cViewer()
 	, m_renderType(0)
 	, m_target(0, 0, 0)
 	, m_isAnimate(true)
+	, m_pNoDepthWriteLessStencilMaskState(NULL)
 {
 	m_windowName = L"DX11 ForwardLight - Capsule Light";
 	const RECT r = { 0, 0, 1280, 1024 };
@@ -79,10 +84,14 @@ cViewer::cViewer()
 
 	m_capsuleLightLength.x = 1.f;
 	m_capuselLightRange.x = 4.f;
+
+	m_ambientDown = Vector3(0.1f, 0.5f, 0.1f);
+	m_ambientUp = Vector3(0.1f, 0.2f, 0.5f);	
 }
 
 cViewer::~cViewer()
 {
+	SAFE_RELEASE(m_pNoDepthWriteLessStencilMaskState);
 	graphic::ReleaseRenderer();
 }
 
@@ -105,13 +114,13 @@ bool cViewer::OnInit()
 
 	m_gui.Init(m_hWnd, m_renderer.GetDevice(), m_renderer.GetDevContext(), NULL);
 
-	m_cbCapsuleLight.Create(m_renderer);
+	m_cbDirLight.Create(m_renderer);
 
 	GetMainLight().Init(cLight::LIGHT_DIRECTIONAL,
 		Vector4(0.2f, 0.2f, 0.2f, 1), Vector4(0.9f, 0.9f, 0.9f, 1),
 		Vector4(0.2f, 0.2f, 0.2f, 1));
-	const Vector3 lightPos(-1, 0.5f, -1);
-	const Vector3 lightLookat(1, 0.5f, 1);
+	const Vector3 lightPos(-1, 300.f, -1);
+	const Vector3 lightLookat(1, 300.f, 1);
 	GetMainLight().SetPosition(lightPos);
 	GetMainLight().SetDirection((lightLookat - lightPos).Normal());
 	m_lightPos = lightPos;
@@ -122,12 +131,27 @@ bool cViewer::OnInit()
 		for (int z = 0; z < 8; ++z)
 		{
 			m_model[idx].Create(m_renderer, 0, "chessqueen.x");
+			m_model[idx].SetRenderFlag(eRenderFlag::ALPHABLEND, false);
+			m_model[idx].SetRenderFlag(eRenderFlag::NOALPHABLEND, true);
 			m_model[idx].m_transform.pos = Vector3((x - 4)*1.f, 0, (z - 4)*1.f);
 			m_model[idx].m_transform.pos.y = 0.1f;
 			m_model[idx].m_transform.scale *= 10.f;
 			++idx;
 		}
 	}
+
+	D3D11_DEPTH_STENCIL_DESC descDepth;
+	descDepth.DepthEnable = TRUE;
+	descDepth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	descDepth.DepthFunc = D3D11_COMPARISON_LESS;
+	descDepth.StencilEnable = TRUE;
+	descDepth.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+	descDepth.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+	const D3D11_DEPTH_STENCILOP_DESC noSkyStencilOp = { D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_KEEP, D3D11_COMPARISON_EQUAL };
+	descDepth.FrontFace = noSkyStencilOp;
+	descDepth.BackFace = noSkyStencilOp;
+	if (FAILED(m_renderer.GetDevice()->CreateDepthStencilState(&descDepth, &m_pNoDepthWriteLessStencilMaskState)))
+		return false;
 
 	return true;
 }
@@ -155,8 +179,10 @@ void cViewer::OnRender(const float deltaSeconds)
 	if (ImGui::Begin("Information", NULL, ImVec2(300, 500)))
 	{
 		ImGui::Checkbox("Animate", &m_isAnimate);
-		ImGui::DragFloat("CapsuleLight Length", &m_capsuleLightLength.x, 0.01f, 0.f, 100.f);
-		ImGui::DragFloat("CapsuleLight Range", &m_capuselLightRange.x, 0.01f, 0.f, 100.f);
+		ImGui::ColorEdit3("Ambient Down", (float*)&m_ambientDown);
+		ImGui::ColorEdit3("Ambient Up", (float*)&m_ambientUp);
+		ImGui::DragFloat("Specular Intensity Exp", &GetMainLight().m_specExp, 0.001f, 0.f, 200.f);
+		ImGui::DragFloat("Specular Intensity", &GetMainLight().m_specIntensity, 0.001f, 0.f, 1.f);
 		ImGui::End();
 	}
 
@@ -166,16 +192,16 @@ void cViewer::OnRender(const float deltaSeconds)
 		{
 			for (auto &mesh : m_model[i].m_model->m_meshes)
 			{
-				mesh->m_shader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_diferredPath
+				mesh->m_shader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_deferredShaderPath
 					, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
 				mesh->m_isBeginShader = false;
 			}
 		}
 	}
 
+	// Render Deferred Shading to GBuffer
+	if (m_gbuff.Begin(m_renderer))
 	{
-		m_gbuff.Begin(m_renderer);
-
 		GetMainCamera().Bind(m_renderer);
 
 		const float angle = deltaSeconds * 1.f * (m_isAnimate ? 1.0f : 0.f);
@@ -197,19 +223,14 @@ void cViewer::OnRender(const float deltaSeconds)
 		m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
 		m_renderer.m_dbgLine.Render(m_renderer);
 
-		cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath
+		cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
+
+		cShader11 *deferredShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_deferredShaderPath
 			, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
 
-		cShader11 *diferredShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_diferredPath
-			, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
-
-		diferredShader->SetTechnique((m_renderType == 0) ? "Unlit" : "Unlit_Old");
-		diferredShader->Begin();
-		diferredShader->BeginPass(m_renderer, 0);
-
-		m_cbCapsuleLight.m_v->length = m_capsuleLightLength.GetVectorXM();
-		m_cbCapsuleLight.m_v->range = m_capuselLightRange.GetVectorXM();
-		m_cbCapsuleLight.Update(m_renderer, 6);
+		deferredShader->SetTechnique((m_renderType == 0) ? "Unlit" : "Unlit_Old");
+		deferredShader->Begin();
+		deferredShader->BeginPass(m_renderer, 0);
 
 		for (int i = 0; i < 64; ++i)
 			m_model[i].Render(m_renderer);
@@ -217,52 +238,66 @@ void cViewer::OnRender(const float deltaSeconds)
 		m_gbuff.End(m_renderer);
 	}
 
-
-	// Render
-	if (m_renderer.ClearScene())
+	// Render to Main TargetBuffer
 	{
-		m_renderer.BeginScene();
+		GetMainCamera().Bind(m_renderer);
+		GetMainLight().Bind(m_renderer);
 
-		//GetMainCamera().Bind(m_renderer);
+		ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
+		devContext->ClearRenderTargetView(m_renderer.m_renderTargetView
+			, (float*)&Vector4(50.f / 255.f, 50.f / 255.f, 50.f / 255.f, 1.0f));
+		devContext->OMSetRenderTargets(1
+			, &m_renderer.m_renderTargetView, m_gbuff.m_DepthStencilReadOnlyDSV);
+		m_gbuff.PrepareForUnpack(m_renderer);
 
-		//const float angle = deltaSeconds * 1.f * (m_isAnimate ? 1.0f : 0.f);
-		//Matrix44 tm;
-		//tm.SetRotationY(angle);
-		//const Vector3 lightPos = m_lightPos * tm;
-		//const Vector3 lightLookat(0, lightPos.y, 0);
-		//const Vector3 norm = (lightLookat - lightPos).Normal();
-		//const Vector3 lightDir = (Vector3(0, 1, 0).CrossProduct(-norm)).Normal();
-		//const Vector3 lightStartPos = lightPos - (lightDir * (m_capsuleLightLength.x / 2.f));
+		devContext->OMSetDepthStencilState(m_pNoDepthWriteLessStencilMaskState, 1);
 
-		//m_lightPos = lightPos;
-		//GetMainLight().SetPosition(lightStartPos);
-		//GetMainLight().SetDirection(lightDir);
-		//GetMainLight().Bind(m_renderer);
+		cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
+		hlslShader->SetTechnique("Unlit");
+		hlslShader->Begin();
+		hlslShader->BeginPass(m_renderer, 0);
 
-		//m_ground.Render(m_renderer);
+		ID3D11ShaderResourceView* arrViews[4] = { m_gbuff.m_DepthStencilSRV
+			, m_gbuff.m_ColorSpecIntensitySRV
+			, m_gbuff.m_NormalSRV
+			, m_gbuff.m_SpecPowerSRV };
+		devContext->PSSetShaderResources(0, 4, arrViews);
 
-		//m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
-		//m_renderer.m_dbgLine.Render(m_renderer);
+		m_renderer.m_cbPerFrame.Update(m_renderer);
+		m_renderer.m_cbLight.Update(m_renderer, 1);
 
-		//cShader11 *shader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath
-		//	, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
+		m_cbDirLight.m_v->AmbientDown = XMLoadFloat3((XMFLOAT3*)&GammaToLinear(m_ambientDown));
+		m_cbDirLight.m_v->AmbientRange = XMLoadFloat3((XMFLOAT3*)&(GammaToLinear(m_ambientUp) - GammaToLinear(m_ambientDown)));
+		m_cbDirLight.Update(m_renderer, 6);
+		m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
 
-		//shader->SetTechnique((m_renderType == 0) ? "Unlit" : "Unlit_Old");
-		//shader->Begin();
-		//shader->BeginPass(m_renderer, 0);
+		devContext->IASetInputLayout(NULL);
+		devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
+		devContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-		//m_cbCapsuleLight.m_v->length = m_capsuleLightLength.GetVectorXM();
-		//m_cbCapsuleLight.m_v->range = m_capuselLightRange.GetVectorXM();
-		//m_cbCapsuleLight.Update(m_renderer, 6);
+		devContext->Draw(4, 0);
 
-		//for (int i = 0; i < 64; ++i)
-		//	m_model[i].Render(m_renderer);
-
-		m_gui.Render();
-		m_renderer.RenderFPS();
-		m_renderer.EndScene();
-		m_renderer.Present();
+		ID3D11ShaderResourceView *arrRV[1] = { NULL };
+		devContext->PSSetShaderResources(4, 1, arrRV);
+		ZeroMemory(arrViews, sizeof(arrViews));
+		devContext->PSSetShaderResources(0, 4, arrViews);
 	}
+
+	// Render GBuffer
+	{
+		ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
+		devContext->OMSetRenderTargets(1, &m_renderer.m_renderTargetView, NULL);
+
+		cShader11 *gbuffShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_gbuffShaderPath, 0, false);
+		gbuffShader->SetTechnique("Unlit");
+		gbuffShader->Begin();
+		gbuffShader->BeginPass(m_renderer, 0);
+		m_gbuff.Render(m_renderer);
+	}
+
+	m_gui.Render();
+	m_renderer.RenderFPS();
+	m_renderer.Present();
 }
 
 
