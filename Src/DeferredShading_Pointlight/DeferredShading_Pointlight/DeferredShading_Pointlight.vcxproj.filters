@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="deferredshading_pointlight.cpp" />
+    <ClCompile Include="gbuffer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="gbuffer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="fx">
+      <UniqueIdentifier>{c67764ad-e8a4-4b28-aba1-9735dc7bf952}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\..\..\Media\deferredshading_pointlight\deferredshading.fx">
+      <Filter>fx</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\..\Media\deferredshading_pointlight\gbuffer.fx">
+      <Filter>fx</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\hlsl.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

@@ -215,7 +215,7 @@ fxgroup
                 //   o1.x <- <VS return value>.Normal.x; o1.y <- <VS return value>.Normal.y; o1.z <- <VS return value>.Normal.z; 
                 //   o0.x <- <VS return value>.Pos.x; o0.y <- <VS return value>.Pos.y; o0.z <- <VS return value>.Pos.z; o0.w <- <VS return value>.Pos.w
                 //
-                #line 32 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\deferredshading.fx"
+                #line 32 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\deferredshading.fx"
                 mov r0.xyzw, cb0[0].xyzw  // r0.x <- mWorld._m00; r0.y <- mWorld._m10; r0.z <- mWorld._m20; r0.w <- mWorld._m30
                 mov r1.xyzw, cb0[1].xyzw  // r1.x <- mWorld._m01; r1.y <- mWorld._m11; r1.z <- mWorld._m21; r1.w <- mWorld._m31
                 mov r2.xyzw, cb0[2].xyzw  // r2.x <- mWorld._m02; r2.y <- mWorld._m12; r2.z <- mWorld._m22; r2.w <- mWorld._m32
@@ -340,7 +340,7 @@ fxgroup
                 //   o1.x <- <PS return value>.Normal.x; o1.y <- <PS return value>.Normal.y; o1.z <- <PS return value>.Normal.z; o1.w <- <PS return value>.Normal.w; 
                 //   o0.x <- <PS return value>.ColorSpecInt.x; o0.y <- <PS return value>.ColorSpecInt.y; o0.z <- <PS return value>.ColorSpecInt.z; o0.w <- <PS return value>.ColorSpecInt.w
                 //
-                #line 4 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\deferredshading.fx"
+                #line 4 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\deferredshading.fx"
                 mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
                 
                 #line 76

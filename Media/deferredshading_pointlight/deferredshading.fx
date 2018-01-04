@@ -75,7 +75,7 @@ PS_GBUFFER_OUT PS(VSOUT_DIRLIGHT In)
 	// Lookup mesh texture and modulate it with diffuse
 	float3 DiffuseColor = txDiffuse.Sample(samLinear, In.Tex);
 	DiffuseColor *= DiffuseColor;
-	
+
 	return PackGBuffer(DiffuseColor, normalize(In.Normal), gLight_SpecIntensity.y, gLight_SpecIntensity.x);
 }
 

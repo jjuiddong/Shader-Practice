@@ -1,8 +1,8 @@
 //
-// DX11 Deferred Shading - Directional Light
+// DX11 Deferred Shading - Point Light
 //
 // HLSL-Development-Cookbook
-//	- Directional light
+//	- Point light
 // 
 
 #include "../../../../../Common/Common/common.h"
@@ -20,9 +20,8 @@ struct sCbDirightPS
 	XMVECTOR AmbientRange;
 };
 
-static const char *g_hlslPath = "../Media/deferredshading_directionallight/hlsl.fxo";
-static const char *g_deferredShaderPath = "../Media/deferredshading_directionallight/deferredshading.fxo";
-static const char *g_gbuffShaderPath = "../Media/deferredshading_directionallight/gbuffer.fxo";
+static const char *g_hlslPath = "../Media/deferredshading_pointlight/hlsl.fxo";
+static const char *g_deferredShaderPath = "../Media/deferredshading_pointlight/deferredshading.fxo";
 
 class cViewer : public framework::cGameMain
 {
@@ -74,7 +73,7 @@ cViewer::cViewer()
 	, m_isAnimate(true)
 	, m_pNoDepthWriteLessStencilMaskState(NULL)
 {
-	m_windowName = L"DX11 DeferredShading - Directional Light";
+	m_windowName = L"DX11 DeferredShading - Point Light";
 	const RECT r = { 0, 0, 1280, 1024 };
 	m_windowRect = r;
 	m_moveLen = 0;
@@ -86,7 +85,7 @@ cViewer::cViewer()
 	m_capuselLightRange.x = 4.f;
 
 	m_ambientDown = Vector3(0.1f, 0.5f, 0.1f);
-	m_ambientUp = Vector3(0.1f, 0.2f, 0.5f);	
+	m_ambientUp = Vector3(0.1f, 0.2f, 0.5f);
 }
 
 cViewer::~cViewer()
@@ -287,11 +286,6 @@ void cViewer::OnRender(const float deltaSeconds)
 	{
 		ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
 		devContext->OMSetRenderTargets(1, &m_renderer.m_renderTargetView, NULL);
-
-		cShader11 *gbuffShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_gbuffShaderPath, 0, false);
-		gbuffShader->SetTechnique("Unlit");
-		gbuffShader->Begin();
-		gbuffShader->BeginPass(m_renderer, 0);
 		m_gbuff.Render(m_renderer);
 	}
 
