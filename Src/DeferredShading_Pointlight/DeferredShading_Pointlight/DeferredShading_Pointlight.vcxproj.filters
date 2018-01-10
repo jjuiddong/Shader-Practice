@@ -13,15 +13,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\..\..\Media\deferredshading_pointlight\deferredshading.fx">
-      <Filter>fx</Filter>
-    </FxCompile>
-    <FxCompile Include="..\..\..\Media\deferredshading_pointlight\gbuffer.fx">
-      <Filter>fx</Filter>
-    </FxCompile>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\hlsl.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\gbuffer.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\deferredshading.fx">
       <Filter>fx</Filter>
     </CustomBuild>
   </ItemGroup>

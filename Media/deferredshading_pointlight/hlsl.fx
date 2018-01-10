@@ -172,39 +172,6 @@ float4 PS(VS_OUTPUT In) : SV_Target
 
 	// Return the final color
 	return float4(finalColor, 1.0);
-
-	//// Find the shortest distance between the pixel and capsules segment
-	//float3 ToCapsuleStart = In.PosW - gLight_PosW;
-	//float DistOnLine = dot(ToCapsuleStart, gLight_Direction) / gCapsuleLightLength;
-	//DistOnLine = saturate(DistOnLine) * gCapsuleLightLength;
-	//float3 PointOnLine = gLight_PosW + gLight_Direction * DistOnLine;
-	//float3 ToLight = PointOnLine - In.PosW;
-	//float DistToLight = length(ToLight);
-
-	//ToLight /= DistToLight; // Normalize
-
-	//// Sample the texture and convert to linear space
-	//float3 DiffuseColor = txDiffuse.Sample(samLinear, In.Tex).rgb;
-	//DiffuseColor *= DiffuseColor;
-
-	//// Blinn Phong diffuse
-	//const float3 L = ToLight;
-	//const float3 H = normalize(L + normalize(In.toEye));
-	//const float3 N = normalize(In.Normal);
-	//const float lightV = saturate(dot(N, L));
-
-	//float3 finalColor = 
-	//	  gLight_Diffuse.xyz * lightV
-	//	+ gLight_Specular.xyz * pow(saturate(dot(N, H)), 0.1f);// gMtrl_Pow)
-	//	;
-
-	//// Attenuation
-	//float range = gCapsuleLightRange.x;
-	//float DistToLightNorm = 1.0 - saturate(DistToLight * (1/range));
-	//float Attn = DistToLightNorm * DistToLightNorm;
-	//finalColor *= DiffuseColor * Attn;
-
-	//return float4(finalColor, 1.0);
 }
 
 

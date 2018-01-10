@@ -14,7 +14,7 @@ using namespace common;
 using namespace graphic;
 
 
-struct sCbDirightPS
+struct sCbDirLightPS
 {
 	XMVECTOR AmbientDown;
 	XMVECTOR AmbientRange;
@@ -47,7 +47,7 @@ public:
 	cImGui m_gui;
 	cGBuffer m_gbuff;
 
-	cConstantBuffer<sCbDirightPS> m_cbDirLight;
+	cConstantBuffer<sCbDirLightPS> m_cbDirLight;
 	Vector3 m_ambientDown;
 	Vector3 m_ambientUp;
 	ID3D11DepthStencilState* m_pNoDepthWriteLessStencilMaskState;
