@@ -20,7 +20,18 @@ struct sCbDirightPS
 	XMVECTOR AmbientRange;
 };
 
+struct sCbPointLight
+{
+	XMVECTOR PointLightPos;
+	XMVECTOR PointLightRangeRcp;
+	XMVECTOR PointColor;
+	XMVECTOR LightPerspectiveValues;
+	XMMATRIX LightProjection;
+};
+
+
 static const char *g_hlslPath = "../Media/deferredshading_pointlight/hlsl.fxo";
+static const char *g_dirlightPath = "../Media/deferredshading_pointlight/dirlight.fxo";
 static const char *g_deferredShaderPath = "../Media/deferredshading_pointlight/deferredshading.fxo";
 
 class cViewer : public framework::cGameMain
@@ -38,6 +49,10 @@ public:
 	void ChangeWindowSize();
 	void UpdateLookAt();
 
+protected:
+	void RenderDirectionalLight();
+	void RenderPointLight();
+
 
 public:
 	cCamera3D m_camera;
@@ -47,9 +62,13 @@ public:
 	cGBuffer m_gbuff;
 
 	cConstantBuffer<sCbDirightPS> m_cbDirLight;
+	cConstantBuffer<sCbPointLight> m_cbPointLight;	
 	Vector3 m_ambientDown;
 	Vector3 m_ambientUp;
+	ID3D11RasterizerState* m_pNoDepthClipFrontRS;
 	ID3D11DepthStencilState* m_pNoDepthWriteLessStencilMaskState;
+	ID3D11DepthStencilState* m_pNoDepthWriteGreatherStencilMaskState;
+	ID3D11BlendState* m_pAdditiveBlendState;
 
 	int m_renderType; //0=new, 1=old
 	bool m_isAnimate;
@@ -70,8 +89,9 @@ cViewer::cViewer()
 	: m_camera("main camera")
 	, m_renderType(0)
 	, m_target(0, 0, 0)
-	, m_isAnimate(true)
+	, m_isAnimate(false)
 	, m_pNoDepthWriteLessStencilMaskState(NULL)
+	, m_pNoDepthWriteGreatherStencilMaskState(NULL)
 {
 	m_windowName = L"DX11 DeferredShading - Point Light";
 	const RECT r = { 0, 0, 1280, 1024 };
@@ -84,13 +104,16 @@ cViewer::cViewer()
 	m_capsuleLightLength.x = 1.f;
 	m_capuselLightRange.x = 4.f;
 
-	m_ambientDown = Vector3(0.1f, 0.5f, 0.1f);
-	m_ambientUp = Vector3(0.1f, 0.2f, 0.5f);
+	m_ambientDown = Vector3(0.f, 0.f, 0.f);
+	m_ambientUp = Vector3(0.f, 0.f, 0.f);
 }
 
 cViewer::~cViewer()
 {
 	SAFE_RELEASE(m_pNoDepthWriteLessStencilMaskState);
+	SAFE_RELEASE(m_pNoDepthWriteGreatherStencilMaskState);
+	SAFE_RELEASE(m_pNoDepthClipFrontRS);
+	SAFE_RELEASE(m_pAdditiveBlendState);
 	graphic::ReleaseRenderer();
 }
 
@@ -114,10 +137,11 @@ bool cViewer::OnInit()
 	m_gui.Init(m_hWnd, m_renderer.GetDevice(), m_renderer.GetDevContext(), NULL);
 
 	m_cbDirLight.Create(m_renderer);
+	m_cbPointLight.Create(m_renderer);
 
 	GetMainLight().Init(cLight::LIGHT_DIRECTIONAL,
-		Vector4(0.2f, 0.2f, 0.2f, 1), Vector4(0.9f, 0.9f, 0.9f, 1),
-		Vector4(0.2f, 0.2f, 0.2f, 1));
+		Vector4(0.f, 0.f, 0.f, 1), Vector4(0.f, 0.f, 0.f, 1),
+		Vector4(0.f, 0.f, 0.f, 1));
 	const Vector3 lightPos(-1, 300.f, -1);
 	const Vector3 lightLookat(1, 300.f, 1);
 	GetMainLight().SetPosition(lightPos);
@@ -146,10 +170,46 @@ bool cViewer::OnInit()
 	descDepth.StencilEnable = TRUE;
 	descDepth.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
 	descDepth.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
-	const D3D11_DEPTH_STENCILOP_DESC noSkyStencilOp = { D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_KEEP, D3D11_COMPARISON_EQUAL };
+	const D3D11_DEPTH_STENCILOP_DESC noSkyStencilOp = { D3D11_STENCIL_OP_KEEP
+		, D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_KEEP, D3D11_COMPARISON_EQUAL };
 	descDepth.FrontFace = noSkyStencilOp;
 	descDepth.BackFace = noSkyStencilOp;
 	if (FAILED(m_renderer.GetDevice()->CreateDepthStencilState(&descDepth, &m_pNoDepthWriteLessStencilMaskState)))
+		return false;
+
+	descDepth.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
+	if (FAILED(m_renderer.GetDevice()->CreateDepthStencilState(&descDepth, &m_pNoDepthWriteGreatherStencilMaskState)))
+		return false;
+
+	D3D11_RASTERIZER_DESC descRast = {
+		D3D11_FILL_SOLID,
+		D3D11_CULL_FRONT,
+		FALSE,
+		D3D11_DEFAULT_DEPTH_BIAS,
+		D3D11_DEFAULT_DEPTH_BIAS_CLAMP,
+		D3D11_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+		FALSE,
+		FALSE,
+		FALSE,
+		FALSE
+	};
+	descRast.CullMode = D3D11_CULL_FRONT;
+	if (FAILED(m_renderer.GetDevice()->CreateRasterizerState(&descRast, &m_pNoDepthClipFrontRS)))
+		return false;
+
+	D3D11_BLEND_DESC descBlend;
+	descBlend.AlphaToCoverageEnable = FALSE;
+	descBlend.IndependentBlendEnable = FALSE;
+	const D3D11_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc =
+	{
+		TRUE,
+		D3D11_BLEND_ONE, D3D11_BLEND_ONE, D3D11_BLEND_OP_ADD,
+		D3D11_BLEND_ONE, D3D11_BLEND_ONE, D3D11_BLEND_OP_ADD,
+		D3D11_COLOR_WRITE_ENABLE_ALL,
+	};
+	for (UINT i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+		descBlend.RenderTarget[i] = defaultRenderTargetBlendDesc;
+	if (FAILED(m_renderer.GetDevice()->CreateBlendState(&descBlend, &m_pAdditiveBlendState)))
 		return false;
 
 	return true;
@@ -222,8 +282,6 @@ void cViewer::OnRender(const float deltaSeconds)
 		m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
 		m_renderer.m_dbgLine.Render(m_renderer);
 
-		cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
-
 		cShader11 *deferredShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_deferredShaderPath
 			, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
 
@@ -243,43 +301,30 @@ void cViewer::OnRender(const float deltaSeconds)
 		GetMainLight().Bind(m_renderer);
 
 		ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
-		devContext->ClearRenderTargetView(m_renderer.m_renderTargetView
-			, (float*)&Vector4(50.f / 255.f, 50.f / 255.f, 50.f / 255.f, 1.0f));
-		devContext->OMSetRenderTargets(1
-			, &m_renderer.m_renderTargetView, m_gbuff.m_DepthStencilReadOnlyDSV);
-		m_gbuff.PrepareForUnpack(m_renderer);
 
-		devContext->OMSetDepthStencilState(m_pNoDepthWriteLessStencilMaskState, 1);
+		ID3D11DepthStencilState* pPrevDepthState;
+		UINT nPrevStencil;
+		devContext->OMGetDepthStencilState(&pPrevDepthState, &nPrevStencil);
 
-		cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
-		hlslShader->SetTechnique("Unlit");
-		hlslShader->Begin();
-		hlslShader->BeginPass(m_renderer, 0);
+		RenderDirectionalLight();
 
-		ID3D11ShaderResourceView* arrViews[4] = { m_gbuff.m_DepthStencilSRV
-			, m_gbuff.m_ColorSpecIntensitySRV
-			, m_gbuff.m_NormalSRV
-			, m_gbuff.m_SpecPowerSRV };
-		devContext->PSSetShaderResources(0, 4, arrViews);
+		//CommonStates state(m_renderer.GetDevice());
+		//float factor[4] = { 1,1,1,1 };
+		//devContext->OMSetBlendState(state.Additive(), factor, 0xffffffff);
+		ID3D11BlendState* pPrevBlendState;
+		FLOAT prevBlendFactor[4];
+		UINT prevSampleMask;
+		devContext->OMGetBlendState(&pPrevBlendState, prevBlendFactor, &prevSampleMask);
+		devContext->OMSetBlendState(m_pAdditiveBlendState, prevBlendFactor, prevSampleMask);
 
-		m_renderer.m_cbPerFrame.Update(m_renderer);
-		m_renderer.m_cbLight.Update(m_renderer, 1);
+		RenderPointLight();
+		//devContext->OMSetBlendState(state.NonPremultiplied(), factor, 0xffffffff);
 
-		m_cbDirLight.m_v->AmbientDown = XMLoadFloat3((XMFLOAT3*)&GammaToLinear(m_ambientDown));
-		m_cbDirLight.m_v->AmbientRange = XMLoadFloat3((XMFLOAT3*)&(GammaToLinear(m_ambientUp) - GammaToLinear(m_ambientDown)));
-		m_cbDirLight.Update(m_renderer, 6);
-		m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
+		devContext->OMSetBlendState(pPrevBlendState, prevBlendFactor, prevSampleMask);
+		SAFE_RELEASE(pPrevBlendState);
 
-		devContext->IASetInputLayout(NULL);
-		devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
-		devContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-		devContext->Draw(4, 0);
-
-		ID3D11ShaderResourceView *arrRV[1] = { NULL };
-		devContext->PSSetShaderResources(4, 1, arrRV);
-		ZeroMemory(arrViews, sizeof(arrViews));
-		devContext->PSSetShaderResources(0, 4, arrViews);
+		devContext->OMSetDepthStencilState(pPrevDepthState, nPrevStencil);
+		SAFE_RELEASE(pPrevDepthState);
 	}
 
 	// Render GBuffer
@@ -292,6 +337,112 @@ void cViewer::OnRender(const float deltaSeconds)
 	m_gui.Render();
 	m_renderer.RenderFPS();
 	m_renderer.Present();
+}
+
+
+void cViewer::RenderDirectionalLight()
+{
+	ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
+	devContext->ClearRenderTargetView(m_renderer.m_renderTargetView
+		, (float*)&Vector4(50.f / 255.f, 50.f / 255.f, 50.f / 255.f, 1.0f));
+	devContext->OMSetRenderTargets(1
+		, &m_renderer.m_renderTargetView, m_gbuff.m_DepthStencilReadOnlyDSV);
+	m_gbuff.PrepareForUnpack(m_renderer);
+
+	devContext->OMSetDepthStencilState(m_pNoDepthWriteLessStencilMaskState, 1);
+
+	cShader11 *dirLightShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_dirlightPath, 0, false);
+	dirLightShader->SetTechnique("Unlit");
+	dirLightShader->Begin();
+	dirLightShader->BeginPass(m_renderer, 0);
+
+	ID3D11ShaderResourceView* arrViews[4] = { m_gbuff.m_DepthStencilSRV
+		, m_gbuff.m_ColorSpecIntensitySRV
+		, m_gbuff.m_NormalSRV
+		, m_gbuff.m_SpecPowerSRV };
+	devContext->PSSetShaderResources(0, 4, arrViews);
+
+	m_renderer.m_cbPerFrame.Update(m_renderer);
+	m_renderer.m_cbLight.Update(m_renderer, 1);
+
+	m_cbDirLight.m_v->AmbientDown = XMLoadFloat3((XMFLOAT3*)&GammaToLinear(m_ambientDown));
+	m_cbDirLight.m_v->AmbientRange = XMLoadFloat3((XMFLOAT3*)&(GammaToLinear(m_ambientUp) - GammaToLinear(m_ambientDown)));
+	m_cbDirLight.Update(m_renderer, 6);
+	m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
+
+	devContext->IASetInputLayout(NULL);
+	devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
+	devContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+	devContext->Draw(4, 0);
+
+	ID3D11ShaderResourceView *arrRV[1] = { NULL };
+	devContext->PSSetShaderResources(4, 1, arrRV);
+	ZeroMemory(arrViews, sizeof(arrViews));
+	devContext->PSSetShaderResources(0, 4, arrViews);
+}
+
+
+void cViewer::RenderPointLight()
+{
+	const float lightRange = 2.f;
+	const Vector3 lightPos(0, 0, 0);
+	const Vector3 lightScale(lightRange, lightRange, lightRange);
+	const Vector3 lightColor(1.f, 1.f, 1);
+
+	ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
+	cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
+	hlslShader->SetTechnique("Unlit");
+	hlslShader->Begin();
+	hlslShader->BeginPass(m_renderer, 0);
+
+	ID3D11RasterizerState* pPrevRSState;
+	devContext->RSGetState(&pPrevRSState);
+	devContext->RSSetState(m_pNoDepthClipFrontRS);
+	devContext->OMSetDepthStencilState(m_pNoDepthWriteGreatherStencilMaskState, 1);
+
+	ID3D11ShaderResourceView* arrViews[4] = { m_gbuff.m_DepthStencilSRV
+		, m_gbuff.m_ColorSpecIntensitySRV
+		, m_gbuff.m_NormalSRV
+		, m_gbuff.m_SpecPowerSRV };
+	devContext->PSSetShaderResources(0, 4, arrViews);
+
+	m_renderer.m_cbPerFrame.Update(m_renderer);
+	m_renderer.m_cbLight.Update(m_renderer, 1);
+
+	m_cbDirLight.m_v->AmbientDown = XMLoadFloat3((XMFLOAT3*)&GammaToLinear(m_ambientDown));
+	m_cbDirLight.m_v->AmbientRange = XMLoadFloat3((XMFLOAT3*)&(GammaToLinear(m_ambientUp) - GammaToLinear(m_ambientDown)));
+	m_cbDirLight.Update(m_renderer, 6);
+	m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
+
+	m_cbPointLight.m_v->PointLightPos = lightPos.GetVectorXM();
+	m_cbPointLight.m_v->PointLightRangeRcp = (Vector3(1, 1, 1) / lightRange).GetVectorXM();
+	m_cbPointLight.m_v->PointColor = GammaToLinear(lightColor).GetVectorXM();
+	m_cbPointLight.m_v->LightPerspectiveValues = Vector3(0, 0, 0).GetVectorXM();
+
+	Matrix44 lightProj;
+	Matrix44 S;
+	S.SetScale(lightScale);
+	Matrix44 T;
+	T.SetTranslate(lightPos);
+	lightProj = S * T * GetMainCamera().GetViewProjectionMatrix();
+	m_cbPointLight.m_v->LightProjection = XMMatrixTranspose(lightProj.GetMatrixXM());
+	m_cbPointLight.Update(m_renderer, 8);
+
+	devContext->IASetInputLayout(NULL);
+	devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
+	devContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST);
+
+	devContext->Draw(2, 0);
+
+	devContext->RSSetState(pPrevRSState);
+	SAFE_RELEASE(pPrevRSState);
+
+	ID3D11ShaderResourceView *arrRV[1] = { NULL };
+	devContext->PSSetShaderResources(4, 1, arrRV);
+	ZeroMemory(arrViews, sizeof(arrViews));
+	devContext->PSSetShaderResources(0, 4, arrViews);
+	m_renderer.UnbindShaderAll();
 }
 
 

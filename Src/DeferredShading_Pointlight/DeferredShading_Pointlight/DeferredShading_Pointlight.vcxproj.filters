@@ -22,5 +22,8 @@
     <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\deferredshading.fx">
       <Filter>fx</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\deferredshading_pointlight\dirlight.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

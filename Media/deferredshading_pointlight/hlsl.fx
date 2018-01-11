@@ -8,13 +8,11 @@ Texture2D<float4> SpecPowTexture      : register(t3);
 static const float2 g_SpecPowerRange = { 10.0, 250.0 };
 #define EyePosition (ViewInv[3].xyz)
 
-
 cbuffer cbDirLight : register(b6)
 {
 	float4 AmbientDown;
 	float4 AmbientRange;
 }
-
 
 cbuffer cbGBufferUnpack : register(b7)
 {
@@ -22,37 +20,105 @@ cbuffer cbGBufferUnpack : register(b7)
 	matrix ViewInv;
 }
 
-
-struct VS_OUTPUT
+cbuffer cbPointLight : register(b8)
 {
-	float4 Position : SV_Position; // vertex position 
-	float2 cpPos	: TEXCOORD0;
-};
-
-static const float2 arrBasePos[4] = {
-	float2(-1.0, 1.0),
-	float2(1.0, 1.0),
-	float2(-1.0, -1.0),
-	float2(1.0, -1.0),
-};
-
-
-//--------------------------------------------------------------------------------------
-// Vertex Shader
-//--------------------------------------------------------------------------------------
-VS_OUTPUT VS(uint VertexID : SV_VertexID)
-{
-	VS_OUTPUT Output;
-	Output.Position = float4(arrBasePos[VertexID].xy, 0.0, 1.0);
-	Output.cpPos = Output.Position.xy;
-	return Output;
+	float4 PointLightPos;
+	float4 PointLightRangeRcp;
+	float4 PointColor;
+	float4 LightPerspectiveValues;
+	matrix LightProjection;
 }
 
 
+/////////////////////////////////////////////////////////////////////////////
+// Vertex shader
+/////////////////////////////////////////////////////////////////////////////
+float4 VS() : SV_Position
+{
+	return float4(0.0, 0.0, 0.0, 1.0);
+}
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
+/////////////////////////////////////////////////////////////////////////////
+// Hull shader
+/////////////////////////////////////////////////////////////////////////////
+struct HS_CONSTANT_DATA_OUTPUT
+{
+	float Edges[4] : SV_TessFactor;
+	float Inside[2] : SV_InsideTessFactor;
+};
+
+HS_CONSTANT_DATA_OUTPUT PointLightConstantHS()
+{
+	HS_CONSTANT_DATA_OUTPUT Output;
+
+	float tessFactor = 18.0;
+	Output.Edges[0] = Output.Edges[1] = Output.Edges[2] = Output.Edges[3] = tessFactor;
+	Output.Inside[0] = Output.Inside[1] = tessFactor;
+
+	return Output;
+}
+
+struct HS_OUTPUT
+{
+	float3 HemiDir : POSITION;
+};
+
+static const float3 HemilDir[2] = {
+	float3(1.0, 1.0, 1.0),
+	float3(-1.0, 1.0, -1.0)
+};
+
+[domain("quad")]
+[partitioning("integer")]
+[outputtopology("triangle_ccw")]
+[outputcontrolpoints(4)]
+[patchconstantfunc("PointLightConstantHS")]
+HS_OUTPUT PointLightHS(uint PatchID : SV_PrimitiveID)
+{
+	HS_OUTPUT Output;
+
+	Output.HemiDir = HemilDir[PatchID];
+
+	return Output;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Domain Shader shader
+/////////////////////////////////////////////////////////////////////////////
+struct DS_OUTPUT
+{
+	float4 Position : SV_POSITION;
+	float2 cpPos	: TEXCOORD0;
+};
+
+[domain("quad")]
+DS_OUTPUT PointLightDS(HS_CONSTANT_DATA_OUTPUT input, float2 UV : SV_DomainLocation
+	, const OutputPatch<HS_OUTPUT, 4> quad)
+{
+	// Transform the UV's into clip-space
+	float2 posClipSpace = UV.xy * 2.0 - 1.0;
+
+	// Find the absulate maximum distance from the center
+	float2 posClipSpaceAbs = abs(posClipSpace.xy);
+	float maxLen = max(posClipSpaceAbs.x, posClipSpaceAbs.y);
+
+	// Generate the final position in clip-space
+	float3 normDir = normalize(float3(posClipSpace.xy, (maxLen - 1.0)) * quad[0].HemiDir);
+	float4 posLS = float4(normDir.xyz, 1.0);
+
+	// Transform all the way to projected space
+	DS_OUTPUT Output;
+	Output.Position = mul(posLS, LightProjection);
+
+	// Store the clip space position
+	Output.cpPos = Output.Position.xy / Output.Position.w;
+
+	return Output;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Pixel shader
+/////////////////////////////////////////////////////////////////////////////
 
 struct SURFACE_DATA
 {
@@ -79,41 +145,6 @@ void MaterialFromGBuffer(SURFACE_DATA gbd, inout Material mat)
 	mat.diffuseColor.w = 1.0; // Fully opaque
 	mat.specPow = g_SpecPowerRange.x + g_SpecPowerRange.y * gbd.SpecPow;
 	mat.specIntensity = gbd.SpecIntensity;
-}
-
-
-
-// Ambient light calculation helper function
-float3 CalcAmbient(float3 normal, float3 color)
-{
-	// Convert from [-1, 1] to [0, 1]
-	float up = normal.y * 0.5 + 0.5;
-
-	// Calculate the ambient value
-	float3 ambient = AmbientDown + up * AmbientRange;
-
-	// Apply the ambient value to the color
-	return ambient * color;
-}
-
-// Directional light calculation helper function
-float3 CalcDirectional(float3 position, Material material)
-{
-	// Phong diffuse
-	float3 DirToLight = -gLight_Direction;
-	float3 DirLightColor = gLight_Diffuse.xyz;
-
-	float NDotL = dot(DirToLight, material.normal);
-	float3 finalColor = DirLightColor.rgb * saturate(NDotL);
-
-	// Blinn specular
-	float3 ToEye = EyePosition - position;
-	ToEye = normalize(ToEye);
-	float3 HalfWay = normalize(ToEye + DirToLight);
-	float NDotH = saturate(dot(HalfWay, material.normal));
-	finalColor += DirLightColor.rgb * pow(NDotH, material.specPow) * material.specIntensity;
-
-	return finalColor * material.diffuseColor.rgb;
 }
 
 
@@ -152,7 +183,34 @@ SURFACE_DATA UnpackGBuffer_Loc(int2 location)
 }
 
 
-float4 PS(VS_OUTPUT In) : SV_Target
+
+float3 CalcPoint(float3 position, Material material, bool bUseShadow)
+{
+	float3 ToLight = PointLightPos.xyz - position;
+	//float3 ToLight = float3(0,0,0) - position;
+	float3 ToEye = EyePosition - position;
+	float DistToLight = length(ToLight);
+
+	// Phong diffuse
+	ToLight /= DistToLight; // Normalize
+	float NDotL = saturate(dot(ToLight, material.normal));
+	float3 finalColor = material.diffuseColor.rgb * NDotL;
+
+	// Blinn specular
+	ToEye = normalize(ToEye);
+	float3 HalfWay = normalize(ToEye + ToLight);
+	float NDotH = saturate(dot(HalfWay, material.normal));
+	//finalColor += pow(NDotH, material.specPow) * material.specIntensity;
+
+	// Attenuation
+	float DistToLightNorm = 1.0 - saturate(DistToLight * PointLightRangeRcp.x);
+	float Attn = DistToLightNorm * DistToLightNorm;
+	//finalColor *= PointColor.rgb * Attn;
+
+	return finalColor;
+}
+
+float4 PointLightCommonPS(DS_OUTPUT In, bool bUseShadow) : SV_TARGET
 {
 	// Unpack the GBuffer
 	SURFACE_DATA gbd = UnpackGBuffer_Loc(In.Position.xy);
@@ -164,16 +222,23 @@ float4 PS(VS_OUTPUT In) : SV_Target
 	// Reconstruct the world position
 	float3 position = CalcWorldPos(In.cpPos, gbd.LinearDepth);
 
-	// Calculate the ambient color
-	float3 finalColor = CalcAmbient(mat.normal, mat.diffuseColor.rgb);
+	// Calculate the light contribution
+	float3 finalColor = CalcPoint(position, mat, bUseShadow);
 
-	// Calculate the directional light
-	finalColor += CalcDirectional(position, mat);
-
-	// Return the final color
+	// return the final color
 	return float4(finalColor, 1.0);
+	//return float4(1,1,1, 1.0);
 }
 
+float4 PS(DS_OUTPUT In) : SV_TARGET
+{
+	return PointLightCommonPS(In, false);
+}
+
+float4 PointLightShadowPS(DS_OUTPUT In) : SV_TARGET
+{
+	return PointLightCommonPS(In, true);
+}
 
 
 technique11 Unlit
@@ -182,9 +247,8 @@ technique11 Unlit
 	{
 		SetVertexShader(CompileShader(vs_5_0, VS()));
 		SetGeometryShader(NULL);
-		SetHullShader(NULL);
-		SetDomainShader(NULL);
+		SetHullShader(CompileShader(hs_5_0, PointLightHS()));
+		SetDomainShader(CompileShader(ds_5_0, PointLightDS()));
 		SetPixelShader(CompileShader(ps_5_0, PS()));
 	}
 }
-
