@@ -31,7 +31,6 @@ struct sCbPointLight
 
 
 static const char *g_hlslPath = "../Media/deferredshading_pointlight/hlsl.fxo";
-static const char *g_hlslPath2 = "../Media/deferredshading_pointlight/hlsl2.fx";
 static const char *g_dirlightPath = "../Media/deferredshading_pointlight/dirlight.fxo";
 static const char *g_deferredShaderPath = "../Media/deferredshading_pointlight/deferredshading.fxo";
 
@@ -392,8 +391,7 @@ void cViewer::RenderPointLight()
 	const Vector3 lightColor(1.f, 1.f, 1);
 
 	ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
-	//cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
-	cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShaderFromFile(m_renderer, g_hlslPath2, 0, false);
+	cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);
 	hlslShader->SetTechnique("Unlit");
 	hlslShader->Begin();
 	hlslShader->BeginPass(m_renderer, 0);
