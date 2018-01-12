@@ -177,7 +177,7 @@ fxgroup
                 // Initial variable locations:
                 //   o0.x <- <VS return value>.x; o0.y <- <VS return value>.y; o0.z <- <VS return value>.z; o0.w <- <VS return value>.w
                 //
-                #line 38 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 435 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mov o0.xyzw, l(0,0,0,1.000000)
                 ret 
                 // Approximately 2 instruction slots used
@@ -240,11 +240,11 @@ fxgroup
                 //   vPrim.x <- PatchID; 
                 //   o0.x <- <PointLightHS return value>.HemiDir.x; o0.y <- <PointLightHS return value>.HemiDir.y; o0.z <- <PointLightHS return value>.HemiDir.z
                 //
-                #line 66 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 463 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mov x0[0].xyz, l(1.000000,1.000000,1.000000,0)
                 mov x0[1].xyz, l(-1.000000,1.000000,-1.000000,0)
                 
-                #line 80
+                #line 477
                 mov r0.x, vPrim
                 mov r0.xyz, x0[r0.x + 0].xyzx  // r0.x <- Output.HemiDir.x; r0.y <- Output.HemiDir.y; r0.z <- Output.HemiDir.z
                 mov o0.xyz, r0.xyzx
@@ -258,7 +258,7 @@ fxgroup
                 dcl_output_siv o5.x, finalQuadVInsideTessFactor
                 dcl_temps 1
                 
-                #line 54
+                #line 451
                 mov r0.x, l(18.000000)  // r0.x <- tessFactor
                 mov r0.x, r0.x  // r0.x <- Output.Edges[3]
                 mov r0.y, r0.x  // r0.y <- Output.Edges[2]
@@ -359,17 +359,17 @@ fxgroup
                 //   vicp[2][0].x <- quad[2].HemiDir.x; vicp[2][0].y <- quad[2].HemiDir.y; vicp[2][0].z <- quad[2].HemiDir.z; 
                 //   vicp[3][0].x <- quad[3].HemiDir.x; vicp[3][0].y <- quad[3].HemiDir.y; vicp[3][0].z <- quad[3].HemiDir.z
                 //
-                #line 99 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 496 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mul r0.xy, vDomain.xyxx, l(2.000000, 2.000000, 0.000000, 0.000000)
                 mov r0.zw, l(-0.000000,-0.000000,-1.000000,-1.000000)
                 add r0.xy, r0.zwzz, r0.xyxx  // r0.x <- posClipSpace.x; r0.y <- posClipSpace.y
                 
-                #line 102
+                #line 499
                 mov r1.xy, -r0.xyxx
                 max r1.xy, r0.xyxx, r1.xyxx  // r1.x <- posClipSpaceAbs.x; r1.y <- posClipSpaceAbs.y
                 max r0.w, r1.y, r1.x  // r0.w <- maxLen
                 
-                #line 106
+                #line 503
                 mov r1.x, l(-1.000000)
                 add r0.z, r0.w, r1.x
                 mul r0.xyz, r0.xyzx, vicp[0][0].xyzx
@@ -379,13 +379,13 @@ fxgroup
                 mov r0.xyz, r0.xyzx  // r0.x <- posLS.x; r0.y <- posLS.y; r0.z <- posLS.z
                 mov r0.w, l(1.000000)  // r0.w <- posLS.w
                 
-                #line 111
+                #line 508
                 dp4 r1.x, r0.xyzw, cb8[4].xyzw  // r1.x <- Output.Position.x
                 dp4 r1.y, r0.xyzw, cb8[5].xyzw  // r1.y <- Output.Position.y
                 dp4 r1.z, r0.xyzw, cb8[6].xyzw  // r1.z <- Output.Position.z
                 dp4 r1.w, r0.xyzw, cb8[7].xyzw  // r1.w <- Output.Position.w
                 
-                #line 114
+                #line 511
                 div r0.xy, r1.xyxx, r1.wwww  // r0.x <- Output.cpPos.x; r0.y <- Output.cpPos.y
                 mov o0.xyzw, r1.xyzw
                 mov o1.xy, r0.xyxx
@@ -463,16 +463,16 @@ fxgroup
                 //   v1.x <- In.cpPos.x; v1.y <- In.cpPos.y; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 235 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 632 "D:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 nop 
                 mov r0.xy, v0.xyxx
                 mov r0.zw, v1.xxxy
                 
-                #line 216
+                #line 613
                 nop 
                 ftoi r1.xy, r0.xyxx
                 
-                #line 171
+                #line 568
                 mov r1.xy, r1.xyxx  // r1.x <- location3.x; r1.y <- location3.y
                 mov r1.zw, l(0,0,0,0)  // r1.w <- location3.z
                 ld_indexable(texture2d)(float,float,float,float) r0.x, r1.xyww, t0.xyzw
@@ -480,12 +480,12 @@ fxgroup
                 nop 
                 mov r0.x, r0.x
                 
-                #line 153
+                #line 550
                 add r0.x, r0.x, cb7[0].w
                 div r2.z, cb7[0].z, r0.x  // r2.z <- linearDepth
                 mov r2.z, r2.z  // r2.z <- <ConvertZToLinearDepth return value>
                 
-                #line 174
+                #line 571
                 mov r2.z, r2.z  // r2.z <- Out.LinearDepth
                 ld_indexable(texture2d)(float,float,float,float) r3.xyz, r1.xyww, t1.xyzw
                 mov r3.xyz, r3.xyzx  // r3.x <- baseColorSpecInt.x; r3.y <- baseColorSpecInt.y; r3.z <- baseColorSpecInt.z
@@ -499,34 +499,34 @@ fxgroup
                 rsq r0.x, r0.x
                 mul r2.xyw, r0.xxxx, r1.xyxz  // r2.x <- Out.Normal.x; r2.y <- Out.Normal.y; r2.w <- Out.Normal.z
                 
-                #line 182
+                #line 579
                 mov r2.z, r2.z  // r2.z <- <UnpackGBuffer_Loc return value>.LinearDepth
                 mov r2.xyw, r2.xyxw  // r2.x <- <UnpackGBuffer_Loc return value>.Normal.x; r2.y <- <UnpackGBuffer_Loc return value>.Normal.y; r2.w <- <UnpackGBuffer_Loc return value>.Normal.z
                 mov r3.xyz, r3.xyzx  // r3.x <- <UnpackGBuffer_Loc return value>.Color.x; r3.y <- <UnpackGBuffer_Loc return value>.Color.y; r3.z <- <UnpackGBuffer_Loc return value>.Color.z
                 
-                #line 216
+                #line 613
                 mov r3.xyz, r3.xyzx  // r3.x <- gbd.Color.x; r3.y <- gbd.Color.y; r3.z <- gbd.Color.z
                 mov r2.xyzw, r2.xyzw  // r2.x <- gbd.Normal.x; r2.y <- gbd.Normal.y; r2.z <- gbd.LinearDepth; r2.w <- gbd.Normal.z
                 
-                #line 220
+                #line 617
                 nop 
                 mov r3.xyz, r3.xyzx
                 mov r1.xyz, r2.xywx
                 
-                #line 143
+                #line 540
                 mov r1.xyz, r1.xyzx  // r1.x <- mat.normal.x; r1.y <- mat.normal.y; r1.z <- mat.normal.z
                 mov r3.xyz, r3.xyzx  // r3.x <- mat.diffuseColor.x; r3.y <- mat.diffuseColor.y; r3.z <- mat.diffuseColor.z
                 
-                #line 220
+                #line 617
                 mov r1.xyz, r1.xyzx  // r1.x <- mat.normal.x; r1.y <- mat.normal.y; r1.z <- mat.normal.z
                 mov r3.xyz, r3.xyzx  // r3.x <- mat.diffuseColor.x; r3.y <- mat.diffuseColor.y; r3.z <- mat.diffuseColor.z
                 
-                #line 223
+                #line 620
                 nop 
                 mov r0.zw, r0.zzzw
                 mov r2.z, r2.z
                 
-                #line 161
+                #line 558
                 mul r0.xy, r0.zwzz, cb7[0].xyxx
                 mul r2.xy, r2.zzzz, r0.xyxx  // r2.x <- position.x; r2.y <- position.y
                 mov r2.z, r2.z  // r2.z <- position.z
@@ -535,41 +535,41 @@ fxgroup
                 dp4 r0.y, r2.xyzw, cb7[2].xyzw  // r0.y <- <CalcWorldPos return value>.y
                 dp4 r0.z, r2.xyzw, cb7[3].xyzw  // r0.z <- <CalcWorldPos return value>.z
                 
-                #line 223
+                #line 620
                 mov r0.xyz, r0.xyzx  // r0.x <- position.x; r0.y <- position.y; r0.z <- position.z
                 
-                #line 226
+                #line 623
                 nop 
                 mov r0.xyz, r0.xyzx
                 mov r1.xyz, r1.xyzx
                 mov r3.xyz, r3.xyzx
                 
-                #line 189
+                #line 586
                 mov r0.xyz, -r0.xyzx
                 add r0.xyz, r0.xyzx, cb8[0].xyzx  // r0.x <- ToLight.x; r0.y <- ToLight.y; r0.z <- ToLight.z
                 
-                #line 192
+                #line 589
                 dp3 r0.w, r0.xyzx, r0.xyzx
                 sqrt r0.w, r0.w  // r0.w <- DistToLight
                 
-                #line 195
+                #line 592
                 div r0.xyz, r0.xyzx, r0.wwww
                 dp3 r0.x, r0.xyzx, r1.xyzx
                 max r0.x, r0.x, l(0.000000)
                 min r0.x, r0.x, l(1.000000)  // r0.x <- NDotL
                 mul r0.xyz, r0.xxxx, r3.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
                 
-                #line 210
+                #line 607
                 mov r0.xyz, r0.xyzx  // r0.x <- <CalcPoint return value>.x; r0.y <- <CalcPoint return value>.y; r0.z <- <CalcPoint return value>.z
                 
-                #line 226
+                #line 623
                 mov r0.xyz, r0.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
                 
-                #line 229
+                #line 626
                 mov r0.xyz, r0.xyzx  // r0.x <- <PointLightCommonPS return value>.x; r0.y <- <PointLightCommonPS return value>.y; r0.z <- <PointLightCommonPS return value>.z
                 mov r0.w, l(1.000000)  // r0.w <- <PointLightCommonPS return value>.w
                 
-                #line 235
+                #line 632
                 mov o0.xyzw, r0.xyzw
                 ret 
                 // Approximately 68 instruction slots used
