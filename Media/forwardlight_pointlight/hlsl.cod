@@ -26,6 +26,7 @@ cbuffer cbLight : register(b1)
     float4  gLight_Specular;            // Offset:   32, size:   16
     float3  gLight_Direction;           // Offset:   48, size:   12
     float3  gLight_PosW;                // Offset:   64, size:   12
+    float3  gLight_SpecIntensity;       // Offset:   80, size:   12
 }
 
 cbuffer cbMaetrial : register(b2)
@@ -220,7 +221,7 @@ fxgroup
                 //   o1.x <- <VS return value>.Normal.x; o1.y <- <VS return value>.Normal.y; o1.z <- <VS return value>.Normal.z; 
                 //   o0.x <- <VS return value>.Pos.x; o0.y <- <VS return value>.Pos.y; o0.z <- <VS return value>.Pos.z; o0.w <- <VS return value>.Pos.w
                 //
-                #line 34 "D:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
+                #line 34 "d:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
                 mov r0.xyzw, cb0[0].xyzw  // r0.x <- mWorld._m00; r0.y <- mWorld._m10; r0.z <- mWorld._m20; r0.w <- mWorld._m30
                 mov r1.xyzw, cb0[1].xyzw  // r1.x <- mWorld._m01; r1.y <- mWorld._m11; r1.z <- mWorld._m21; r1.w <- mWorld._m31
                 mov r2.xyzw, cb0[2].xyzw  // r2.x <- mWorld._m02; r2.y <- mWorld._m12; r2.z <- mWorld._m22; r2.w <- mWorld._m32
@@ -285,6 +286,7 @@ fxgroup
                 //   float4 gLight_Specular;            // Offset:   32 Size:    16
                 //   float3 gLight_Direction;           // Offset:   48 Size:    12 [unused]
                 //   float3 gLight_PosW;                // Offset:   64 Size:    12
+                //   float3 gLight_SpecIntensity;       // Offset:   80 Size:    12 [unused]
                 //
                 // }
                 //
@@ -340,7 +342,7 @@ fxgroup
                 //   v6.x <- In.clip; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 67 "D:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
+                #line 67 "d:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
                 mov r0.xyz, -v4.xyzx
                 add r0.xyz, r0.xyzx, cb1[4].xyzx  // r0.x <- ToLight.x; r0.y <- ToLight.y; r0.z <- ToLight.z
                 dp3 r0.w, r0.xyzx, r0.xyzx
@@ -493,7 +495,7 @@ fxgroup
                 //   o1.x <- <VS return value>.Normal.x; o1.y <- <VS return value>.Normal.y; o1.z <- <VS return value>.Normal.z; 
                 //   o0.x <- <VS return value>.Pos.x; o0.y <- <VS return value>.Pos.y; o0.z <- <VS return value>.Pos.z; o0.w <- <VS return value>.Pos.w
                 //
-                #line 34 "D:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
+                #line 34 "d:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
                 mov r0.xyzw, cb0[0].xyzw  // r0.x <- mWorld._m00; r0.y <- mWorld._m10; r0.z <- mWorld._m20; r0.w <- mWorld._m30
                 mov r1.xyzw, cb0[1].xyzw  // r1.x <- mWorld._m01; r1.y <- mWorld._m11; r1.z <- mWorld._m21; r1.w <- mWorld._m31
                 mov r2.xyzw, cb0[2].xyzw  // r2.x <- mWorld._m02; r2.y <- mWorld._m12; r2.z <- mWorld._m22; r2.w <- mWorld._m32
@@ -558,6 +560,7 @@ fxgroup
                 //   float4 gLight_Specular;            // Offset:   32 Size:    16
                 //   float3 gLight_Direction;           // Offset:   48 Size:    12
                 //   float3 gLight_PosW;                // Offset:   64 Size:    12 [unused]
+                //   float3 gLight_SpecIntensity;       // Offset:   80 Size:    12 [unused]
                 //
                 // }
                 //
@@ -625,10 +628,10 @@ fxgroup
                 //   v6.x <- In.clip; 
                 //   o0.x <- <PS_Old return value>.x; o0.y <- <PS_Old return value>.y; o0.z <- <PS_Old return value>.z; o0.w <- <PS_Old return value>.w
                 //
-                #line 100 "D:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
+                #line 100 "d:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
                 nop 
                 
-                #line 384 "D:\Project\Shader-Practice\Media\common.fx"
+                #line 385 "d:\Project\Shader-Practice\Media\common.fx"
                 mov r0.xyz, -cb1[3].xyzx  // r0.x <- L.x; r0.y <- L.y; r0.z <- L.z
                 dp3 r0.w, v5.xyzx, v5.xyzx
                 rsq r0.w, r0.w
@@ -666,10 +669,10 @@ fxgroup
                 mul r1.xyz, r0.wwww, r3.xyzx
                 add r0.xyz, r0.xyzx, r1.xyzx  // r0.x <- color.x; r0.y <- color.y; r0.z <- color.z
                 
-                #line 395
+                #line 396
                 mov r0.xyz, r0.xyzx  // r0.x <- <GetLightingColor return value>.x; r0.y <- <GetLightingColor return value>.y; r0.z <- <GetLightingColor return value>.z
                 
-                #line 100 "D:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
+                #line 100 "d:\Project\Shader-Practice\Media\forwardlight_pointlight\hlsl.fx"
                 mov r0.xyz, r0.xyzx  // r0.x <- color.x; r0.y <- color.y; r0.z <- color.z
                 sample_indexable(texture2d)(float,float,float,float) r1.xyzw, v2.xyxx, t0.xyzw, s0  // r1.x <- texColor.x; r1.y <- texColor.y; r1.z <- texColor.z; r1.w <- texColor.w
                 mul r0.xyz, r0.xyzx, r1.xyzx  // r0.x <- Out.x; r0.y <- Out.y; r0.z <- Out.z

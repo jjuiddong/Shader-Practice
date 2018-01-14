@@ -176,7 +176,7 @@ fxgroup
                 //   o1.x <- <VS return value>.cpPos.x; o1.y <- <VS return value>.cpPos.y; 
                 //   o0.x <- <VS return value>.Position.x; o0.y <- <VS return value>.Position.y; o0.z <- <VS return value>.Position.z; o0.w <- <VS return value>.Position.w
                 //
-                #line 32 "d:\Project\Shader-Practice\Media\deferredshading_directionallight\hlsl.fx"
+                #line 32 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\hlsl.fx"
                 mov x0[0].xy, l(-1.000000,1.000000,0,0)
                 mov x0[1].xy, l(1.000000,1.000000,0,0)
                 mov x0[2].xy, l(-1.000000,-1.000000,0,0)
@@ -279,7 +279,7 @@ fxgroup
                 //   v1.x <- In.cpPos.x; v1.y <- In.cpPos.y; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 8 "d:\Project\Shader-Practice\Media\deferredshading_directionallight\hlsl.fx"
+                #line 8 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\hlsl.fx"
                 mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
                 
                 #line 158

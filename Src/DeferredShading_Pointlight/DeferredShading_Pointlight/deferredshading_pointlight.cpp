@@ -72,7 +72,11 @@ public:
 
 	int m_renderType; //0=new, 1=old
 	bool m_isAnimate;
-	Vector3 m_lightPos;
+	Vector3 m_dirLightPos;
+	Vector3 m_pointLightPos;
+	float m_pointLightRange;
+	Vector3 m_pointLightColor;
+
 	Vector3 m_capsuleLightLength;
 	Vector3 m_capuselLightRange;
 
@@ -127,7 +131,7 @@ bool cViewer::OnInit()
 	GetMainCamera().SetViewPort(WINSIZE_X, WINSIZE_Y);
 
 	m_camera.SetCamera(Vector3(0, 10, -10), Vector3(0, 0, 0), Vector3(0, 1, 0));
-	m_camera.SetProjection(MATH_PI / 4.f, WINSIZE_X / WINSIZE_Y, .1f, 10000.f);
+	m_camera.SetProjection(MATH_PI / 4.f, WINSIZE_X / WINSIZE_Y, 0.1f, 10000.0f);
 	m_camera.SetViewPort(WINSIZE_X, WINSIZE_Y);
 
 	m_ground.Create(m_renderer, 10, 10, 1, 1);
@@ -146,7 +150,10 @@ bool cViewer::OnInit()
 	const Vector3 lightLookat(1, 300.f, 1);
 	GetMainLight().SetPosition(lightPos);
 	GetMainLight().SetDirection((lightLookat - lightPos).Normal());
-	m_lightPos = lightPos;
+	m_dirLightPos = lightPos;
+	m_pointLightPos = Vector3(0, 1.5f, 1.5f);
+	m_pointLightRange = 3.f;
+	m_pointLightColor = Vector3(1, 1, 1);
 
 	int idx = 0;
 	for (int x = 0; x < 8; ++x)
@@ -238,6 +245,9 @@ void cViewer::OnRender(const float deltaSeconds)
 	if (ImGui::Begin("Information", NULL, ImVec2(300, 500)))
 	{
 		ImGui::Checkbox("Animate", &m_isAnimate);
+		ImGui::DragFloat("Range", &m_pointLightRange, 0.01f, 0.f, 100.f);
+		ImGui::ColorEdit3("Point Light Color", (float*)&m_pointLightColor);
+
 		ImGui::ColorEdit3("Ambient Down", (float*)&m_ambientDown);
 		ImGui::ColorEdit3("Ambient Up", (float*)&m_ambientUp);
 		ImGui::DragFloat("Specular Intensity Exp", &GetMainLight().m_specExp, 0.001f, 0.f, 200.f);
@@ -266,21 +276,23 @@ void cViewer::OnRender(const float deltaSeconds)
 		const float angle = deltaSeconds * 1.f * (m_isAnimate ? 1.0f : 0.f);
 		Matrix44 tm;
 		tm.SetRotationY(angle);
-		const Vector3 lightPos = m_lightPos * tm;
+		const Vector3 lightPos = m_pointLightPos * tm;
 		const Vector3 lightLookat(0, lightPos.y, 0);
 		const Vector3 norm = (lightLookat - lightPos).Normal();
 		const Vector3 lightDir = (Vector3(0, 1, 0).CrossProduct(-norm)).Normal();
 		const Vector3 lightStartPos = lightPos - (lightDir * (m_capsuleLightLength.x / 2.f));
 
-		m_lightPos = lightPos;
+		m_pointLightPos = lightPos;
 		GetMainLight().SetPosition(lightStartPos);
 		GetMainLight().SetDirection(lightDir);
 		GetMainLight().Bind(m_renderer);
 
 		m_ground.Render(m_renderer);
 
-		m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
-		m_renderer.m_dbgLine.Render(m_renderer);
+		//m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
+		m_renderer.m_dbgSphere.SetPos(lightPos);
+		m_renderer.m_dbgSphere.SetRadius(0.1f);
+		m_renderer.m_dbgSphere.Render(m_renderer);
 
 		cShader11 *deferredShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_deferredShaderPath
 			, eVertexType::POSITION | eVertexType::NORMAL | eVertexType::TEXTURE0, false);
@@ -385,10 +397,10 @@ void cViewer::RenderDirectionalLight()
 
 void cViewer::RenderPointLight()
 {
-	const float lightRange = 2.f;
-	const Vector3 lightPos(0, 0, 0);
+	const float lightRange = m_pointLightRange;
+	const Vector3 lightPos = m_pointLightPos;
 	const Vector3 lightScale(lightRange, lightRange, lightRange);
-	const Vector3 lightColor(1.f, 1.f, 1);
+	const Vector3 lightColor = m_pointLightColor;
 
 	ID3D11DeviceContext *devContext = m_renderer.GetDevContext();
 	cShader11 *hlslShader = m_renderer.m_shaderMgr.LoadShader(m_renderer, g_hlslPath, 0, false);

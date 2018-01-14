@@ -190,15 +190,16 @@ void cGBuffer::End(cRenderer &renderer)
 void cGBuffer::PrepareForUnpack(cRenderer &renderer)
 {
 	ID3D11DeviceContext *devContext = renderer.GetDevContext();
+	cCamera &cam = GetMainCamera();
 
-	const Matrix44 proj = GetMainCamera().GetProjectionMatrix();
+	const Matrix44 proj = cam.GetProjectionMatrix();
 	const Vector4 v1(1.0f / proj.m[0][0]
 		, 1.0f / proj.m[1][1]
 		, proj.m[3][2]
-		, proj.m[2][2]);
+		, -proj.m[2][2]);
 
 	m_cbGBuffer.m_v->perspectiveValue = XMLoadFloat4((XMFLOAT4*)&v1);
-	m_cbGBuffer.m_v->invView = GetMainCamera().GetViewMatrix().Inverse().GetMatrixXM();
+	m_cbGBuffer.m_v->invView = XMMatrixTranspose(cam.GetViewMatrix().Inverse().GetMatrixXM());
 	m_cbGBuffer.Update(renderer, 7);
 }
 

@@ -187,7 +187,6 @@ SURFACE_DATA UnpackGBuffer_Loc(int2 location)
 float3 CalcPoint(float3 position, Material material, bool bUseShadow)
 {
 	float3 ToLight = PointLightPos.xyz - position;
-	//float3 ToLight = float3(0,0,0) - position;
 	float3 ToEye = EyePosition - position;
 	float DistToLight = length(ToLight);
 
@@ -200,12 +199,12 @@ float3 CalcPoint(float3 position, Material material, bool bUseShadow)
 	ToEye = normalize(ToEye);
 	float3 HalfWay = normalize(ToEye + ToLight);
 	float NDotH = saturate(dot(HalfWay, material.normal));
-	//finalColor += pow(NDotH, material.specPow) * material.specIntensity;
+	finalColor += pow(NDotH, material.specPow) * material.specIntensity;
 
 	// Attenuation
 	float DistToLightNorm = 1.0 - saturate(DistToLight * PointLightRangeRcp.x);
 	float Attn = DistToLightNorm * DistToLightNorm;
-	//finalColor *= PointColor.rgb * Attn;
+	finalColor *= PointColor.rgb * Attn;
 
 	return finalColor;
 }
@@ -215,19 +214,18 @@ float4 PointLightCommonPS(DS_OUTPUT In, bool bUseShadow) : SV_TARGET
 	// Unpack the GBuffer
 	SURFACE_DATA gbd = UnpackGBuffer_Loc(In.Position.xy);
 
-// Convert the data into the material structure
-Material mat;
-MaterialFromGBuffer(gbd, mat);
+	// Convert the data into the material structure
+	Material mat;
+	MaterialFromGBuffer(gbd, mat);
 
-// Reconstruct the world position
-float3 position = CalcWorldPos(In.cpPos, gbd.LinearDepth);
+	// Reconstruct the world position
+	float3 position = CalcWorldPos(In.cpPos, gbd.LinearDepth);
 
-// Calculate the light contribution
-float3 finalColor = CalcPoint(position, mat, bUseShadow);
+	// Calculate the light contribution
+	float3 finalColor = CalcPoint(position, mat, bUseShadow);
 
-// return the final color
-return float4(finalColor, 1.0);
-//return float4(1,1,1, 1.0);
+	// return the final color
+	return float4(finalColor, 1.0);
 }
 
 float4 PS(DS_OUTPUT In) : SV_TARGET

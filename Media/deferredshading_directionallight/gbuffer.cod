@@ -183,7 +183,7 @@ fxgroup
                 //   o1.x <- <VS return value>.UV.x; o1.y <- <VS return value>.UV.y; 
                 //   o0.x <- <VS return value>.Position.x; o0.y <- <VS return value>.Position.y; o0.z <- <VS return value>.Position.z; o0.w <- <VS return value>.Position.w
                 //
-                #line 18 "d:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
+                #line 18 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
                 mov x0[0].xy, l(-0.750000,-0.750000,0,0)
                 mov x0[1].xy, l(-0.250000,-0.750000,0,0)
                 mov x0[2].xy, l(0.250000,-0.750000,0,0)
@@ -296,7 +296,7 @@ fxgroup
                 //   v2.x <- In.sampMask.x; v2.y <- In.sampMask.y; v2.z <- In.sampMask.z; v2.w <- In.sampMask.w; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 119 "d:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
+                #line 119 "D:\Project\Shader-Practice\Media\deferredshading_directionallight\gbuffer.fx"
                 nop 
                 
                 #line 92
