@@ -65,13 +65,16 @@ cbuffer cbGBufferUnpack : register(b7)
     float4x4 ViewInv;                   // Offset:   16, size:   64
 }
 
-cbuffer cbPointLight : register(b8)
+cbuffer cbCapsuleLight : register(b8)
 {
-    float4  PointLightPos;              // Offset:    0, size:   16
-    float4  PointLightRangeRcp;         // Offset:   16, size:   16
-    float4  PointColor;                 // Offset:   32, size:   16
-    float4  LightPerspectiveValues;     // Offset:   48, size:   16
-    float4x4 LightProjection;           // Offset:   64, size:   64
+    float4  CapsuleLightPos;            // Offset:    0, size:   16
+    float4  CapsuleLightRangeRcp;       // Offset:   16, size:   16
+    float4  CapsuleDir;                 // Offset:   32, size:   16
+    float4  CapsuleLen;                 // Offset:   48, size:   16
+    float4  CapsuleColor;               // Offset:   64, size:   16
+    float4  HalfSegmentLen;             // Offset:   80, size:   16
+    float4  CapsuleRange;               // Offset:   96, size:   16
+    float4x4 LightProjection;           // Offset:  112, size:   64
 }
 
 //
@@ -177,7 +180,7 @@ fxgroup
                 // Initial variable locations:
                 //   o0.x <- <VS return value>.x; o0.y <- <VS return value>.y; o0.z <- <VS return value>.z; o0.w <- <VS return value>.w
                 //
-                #line 38 "d:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 42 "D:\Project\Shader-Practice\Media\deferredshading_capsulelight\hlsl.fx"
                 mov o0.xyzw, l(0,0,0,1.000000)
                 ret 
                 // Approximately 2 instruction slots used
@@ -212,7 +215,7 @@ fxgroup
                 //
                 // Name                 Index   Mask Register SysValue  Format   Used
                 // -------------------- ----- ------ -------- -------- ------- ------
-                // POSITION                 0   xyz         0     NONE   float   xyz 
+                // POSITION                 0   xyzw        0     NONE   float   xyzw
                 //
                 // Tessellation Domain   # of control points
                 // -------------------- --------------------
@@ -232,22 +235,22 @@ fxgroup
                 dcl_globalFlags refactoringAllowed | skipOptimization
                 hs_control_point_phase 
                 dcl_input vPrim
-                dcl_output o0.xyz
+                dcl_output o0.xyzw
                 dcl_temps 1
                 dcl_indexableTemp x0[2], 4
                 //
                 // Initial variable locations:
                 //   vPrim.x <- PatchID; 
-                //   o0.x <- <PointLightHS return value>.HemiDir.x; o0.y <- <PointLightHS return value>.HemiDir.y; o0.z <- <PointLightHS return value>.HemiDir.z
+                //   o0.x <- <CapsuleLightHS return value>.CapsuleDir.x; o0.y <- <CapsuleLightHS return value>.CapsuleDir.y; o0.z <- <CapsuleLightHS return value>.CapsuleDir.z; o0.w <- <CapsuleLightHS return value>.CapsuleDir.w
                 //
-                #line 66 "d:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
-                mov x0[0].xyz, l(1.000000,1.000000,1.000000,0)
-                mov x0[1].xyz, l(-1.000000,1.000000,-1.000000,0)
+                #line 70 "D:\Project\Shader-Practice\Media\deferredshading_capsulelight\hlsl.fx"
+                mov x0[0].xyzw, l(1.000000,1.000000,1.000000,1.000000)
+                mov x0[1].xyzw, l(-1.000000,1.000000,-1.000000,1.000000)
                 
-                #line 80
+                #line 84
                 mov r0.x, vPrim
-                mov r0.xyz, x0[r0.x + 0].xyzx  // r0.x <- Output.HemiDir.x; r0.y <- Output.HemiDir.y; r0.z <- Output.HemiDir.z
-                mov o0.xyz, r0.xyzx
+                mov r0.xyzw, x0[r0.x + 0].xyzw  // r0.x <- Output.CapsuleDir.x; r0.y <- Output.CapsuleDir.y; r0.z <- Output.CapsuleDir.z; r0.w <- Output.CapsuleDir.w
+                mov o0.xyzw, r0.xyzw
                 ret 
                 hs_join_phase 
                 dcl_output_siv o0.x, finalQuadUeq0EdgeTessFactor
@@ -258,7 +261,7 @@ fxgroup
                 dcl_output_siv o5.x, finalQuadVInsideTessFactor
                 dcl_temps 1
                 
-                #line 54
+                #line 58
                 mov r0.x, l(18.000000)  // r0.x <- tessFactor
                 mov r0.x, r0.x  // r0.x <- Output.Edges[3]
                 mov r0.y, r0.x  // r0.y <- Output.Edges[2]
@@ -283,14 +286,17 @@ fxgroup
                 //
                 // Buffer Definitions: 
                 //
-                // cbuffer cbPointLight
+                // cbuffer cbCapsuleLight
                 // {
                 //
-                //   float4 PointLightPos;              // Offset:    0 Size:    16 [unused]
-                //   float4 PointLightRangeRcp;         // Offset:   16 Size:    16 [unused]
-                //   float4 PointColor;                 // Offset:   32 Size:    16 [unused]
-                //   float4 LightPerspectiveValues;     // Offset:   48 Size:    16 [unused]
-                //   float4x4 LightProjection;          // Offset:   64 Size:    64
+                //   float4 CapsuleLightPos;            // Offset:    0 Size:    16 [unused]
+                //   float4 CapsuleLightRangeRcp;       // Offset:   16 Size:    16 [unused]
+                //   float4 CapsuleDir;                 // Offset:   32 Size:    16 [unused]
+                //   float4 CapsuleLen;                 // Offset:   48 Size:    16 [unused]
+                //   float4 CapsuleColor;               // Offset:   64 Size:    16 [unused]
+                //   float4 HalfSegmentLen;             // Offset:   80 Size:    16
+                //   float4 CapsuleRange;               // Offset:   96 Size:    16
+                //   float4x4 LightProjection;          // Offset:  112 Size:    64
                 //
                 // }
                 //
@@ -299,7 +305,7 @@ fxgroup
                 //
                 // Name                                 Type  Format         Dim Slot Elements
                 // ------------------------------ ---------- ------- ----------- ---- --------
-                // cbPointLight                      cbuffer      NA          NA    8        1
+                // cbCapsuleLight                    cbuffer      NA          NA    8        1
                 //
                 //
                 //
@@ -319,7 +325,7 @@ fxgroup
                 //
                 // Name                 Index   Mask Register SysValue  Format   Used
                 // -------------------- ----- ------ -------- -------- ------- ------
-                // POSITION                 0   xyz         0     NONE   float   xyz 
+                // POSITION                 0   xyzw        0     NONE   float   xyzw
                 //
                 //
                 // Output signature:
@@ -337,9 +343,9 @@ fxgroup
                 dcl_input_control_point_count 4
                 dcl_tessellator_domain domain_quad
                 dcl_globalFlags refactoringAllowed | skipOptimization
-                dcl_constantbuffer cb8[8], immediateIndexed
+                dcl_constantbuffer cb8[11], immediateIndexed
                 dcl_input vDomain.xy
-                dcl_input vicp[4][0].xyz
+                dcl_input vicp[4][0].xyzw
                 dcl_output_siv o0.xyzw, position
                 dcl_output o1.xy
                 dcl_temps 2
@@ -352,45 +358,73 @@ fxgroup
                 //   vpc4.x <- input.Inside[0]; 
                 //   vpc5.x <- input.Inside[1]; 
                 //   vDomain.x <- UV.x; vDomain.y <- UV.y; 
-                //   o1.x <- <PointLightDS return value>.cpPos.x; o1.y <- <PointLightDS return value>.cpPos.y; 
-                //   o0.x <- <PointLightDS return value>.Position.x; o0.y <- <PointLightDS return value>.Position.y; o0.z <- <PointLightDS return value>.Position.z; o0.w <- <PointLightDS return value>.Position.w; 
-                //   vicp[0][0].x <- quad[0].HemiDir.x; vicp[0][0].y <- quad[0].HemiDir.y; vicp[0][0].z <- quad[0].HemiDir.z; 
-                //   vicp[1][0].x <- quad[1].HemiDir.x; vicp[1][0].y <- quad[1].HemiDir.y; vicp[1][0].z <- quad[1].HemiDir.z; 
-                //   vicp[2][0].x <- quad[2].HemiDir.x; vicp[2][0].y <- quad[2].HemiDir.y; vicp[2][0].z <- quad[2].HemiDir.z; 
-                //   vicp[3][0].x <- quad[3].HemiDir.x; vicp[3][0].y <- quad[3].HemiDir.y; vicp[3][0].z <- quad[3].HemiDir.z
+                //   o1.x <- <CapsuleLightDS return value>.cpPos.x; o1.y <- <CapsuleLightDS return value>.cpPos.y; 
+                //   o0.x <- <CapsuleLightDS return value>.Position.x; o0.y <- <CapsuleLightDS return value>.Position.y; o0.z <- <CapsuleLightDS return value>.Position.z; o0.w <- <CapsuleLightDS return value>.Position.w; 
+                //   vicp[0][0].x <- quad[0].CapsuleDir.x; vicp[0][0].y <- quad[0].CapsuleDir.y; vicp[0][0].z <- quad[0].CapsuleDir.z; vicp[0][0].w <- quad[0].CapsuleDir.w; 
+                //   vicp[1][0].x <- quad[1].CapsuleDir.x; vicp[1][0].y <- quad[1].CapsuleDir.y; vicp[1][0].z <- quad[1].CapsuleDir.z; vicp[1][0].w <- quad[1].CapsuleDir.w; 
+                //   vicp[2][0].x <- quad[2].CapsuleDir.x; vicp[2][0].y <- quad[2].CapsuleDir.y; vicp[2][0].z <- quad[2].CapsuleDir.z; vicp[2][0].w <- quad[2].CapsuleDir.w; 
+                //   vicp[3][0].x <- quad[3].CapsuleDir.x; vicp[3][0].y <- quad[3].CapsuleDir.y; vicp[3][0].z <- quad[3].CapsuleDir.z; vicp[3][0].w <- quad[3].CapsuleDir.w
                 //
-                #line 99 "d:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
-                mul r0.xy, vDomain.xyxx, l(2.000000, 2.000000, 0.000000, 0.000000)
-                mov r0.zw, l(-0.000000,-0.000000,-1.000000,-1.000000)
-                add r0.xy, r0.zwzz, r0.xyxx  // r0.x <- posClipSpace.x; r0.y <- posClipSpace.y
+                #line 107 "D:\Project\Shader-Practice\Media\deferredshading_capsulelight\hlsl.fx"
+                mul r0.xy, vDomain.xyxx, l(2.000000, -2.000000, 0.000000, 0.000000)
+                add r0.xy, r0.xyxx, l(-1.000000, 1.000000, 0.000000, 0.000000)  // r0.x <- posClipSpace.x; r0.y <- posClipSpace.y
                 
-                #line 102
-                mov r1.xy, -r0.xyxx
-                max r1.xy, r0.xyxx, r1.xyxx  // r1.x <- posClipSpaceAbs.x; r1.y <- posClipSpaceAbs.y
-                max r0.w, r1.y, r1.x  // r0.w <- maxLen
-                
-                #line 106
-                mov r1.x, l(-1.000000)
-                add r0.z, r0.w, r1.x
-                mul r0.xyz, r0.xyzx, vicp[0][0].xyzx
-                dp3 r0.w, r0.xyzx, r0.xyzx
-                rsq r0.w, r0.w
-                mul r0.xyz, r0.wwww, r0.xyzx  // r0.x <- normDir.x; r0.y <- normDir.y; r0.z <- normDir.z
-                mov r0.xyz, r0.xyzx  // r0.x <- posLS.x; r0.y <- posLS.y; r0.z <- posLS.z
-                mov r0.w, l(1.000000)  // r0.w <- posLS.w
-                
-                #line 111
-                dp4 r1.x, r0.xyzw, cb8[4].xyzw  // r1.x <- Output.Position.x
-                dp4 r1.y, r0.xyzw, cb8[5].xyzw  // r1.y <- Output.Position.y
-                dp4 r1.z, r0.xyzw, cb8[6].xyzw  // r1.z <- Output.Position.z
-                dp4 r1.w, r0.xyzw, cb8[7].xyzw  // r1.w <- Output.Position.w
+                #line 110
+                mov r0.zw, -r0.xxxy
+                max r0.zw, r0.zzzw, r0.xxxy  // r0.z <- posClipSpaceAbs.x; r0.w <- posClipSpaceAbs.y
+                max r1.x, r0.w, r0.z  // r1.x <- maxLen
                 
                 #line 114
+                mul r0.zw, r0.zzzw, l(0.000000, 0.000000, 1.200000, 1.200000)
+                max r0.zw, r0.zzzw, l(0.000000, 0.000000, 0.000000, 0.000000)
+                min r0.zw, r0.zzzw, l(0.000000, 0.000000, 1.000000, 1.000000)  // r0.z <- posClipSpaceNoCylAbs.x; r0.w <- posClipSpaceNoCylAbs.y
+                max r1.y, r0.w, r0.z  // r1.y <- maxLenNoCapsule
+                lt r1.zw, l(0.000000, 0.000000, 0.000000, 0.000000), r0.xxxy
+                lt r0.xy, r0.xyxx, l(0.000000, 0.000000, 0.000000, 0.000000)
+                ineg r1.zw, r1.zzzw
+                iadd r0.xy, r0.xyxx, r1.zwzz
+                itof r0.xy, r0.xyxx
+                mul r0.xy, r0.zwzz, r0.xyxx  // r0.x <- posClipSpaceNoCyl.x; r0.y <- posClipSpaceNoCyl.y
+                
+                #line 119
+                mov r0.w, -r1.y
+                add r0.z, r0.w, l(1.000000)
+                dp3 r0.w, r0.xyzx, r0.xyzx
+                rsq r0.w, r0.w
+                mul r0.xyz, r0.wwww, r0.xyzx  // r0.x <- halfSpherePos.x; r0.y <- halfSpherePos.y; r0.z <- halfSpherePos.z
+                
+                #line 122
+                mul r0.w, r1.x, l(1.200000)
+                mov r1.x, l(-1.000000)
+                add r0.w, r0.w, r1.x
+                div r0.w, r0.w, l(0.200000)
+                max r0.w, r0.w, l(0.000000)
+                min r0.w, r0.w, l(1.000000)  // r0.w <- cylinderOffsetZ
+                
+                #line 125
+                mul r1.xyz, r0.xyzx, cb8[6].xxxx  // r1.x <- halfSpherePos.x; r1.y <- halfSpherePos.y; r1.z <- halfSpherePos.z
+                
+                #line 128
+                add r0.x, r1.z, cb8[5].x
+                mul r0.y, r0.w, cb8[5].x
+                mov r0.y, -r0.y
+                add r1.z, r0.y, r0.x  // r1.z <- posLS.z
+                mov r1.xy, r1.xyxx  // r1.x <- posLS.x; r1.y <- posLS.y
+                mov r1.w, l(1.000000)  // r1.w <- posLS.w
+                
+                #line 132
+                mul r0.xyzw, r1.xyzw, vicp[0][0].xyzw  // r0.x <- posLS.x; r0.y <- posLS.y; r0.z <- posLS.z; r0.w <- posLS.w
+                
+                #line 136
+                dp4 r1.x, r0.xyzw, cb8[7].xyzw  // r1.x <- Output.Position.x
+                dp4 r1.y, r0.xyzw, cb8[8].xyzw  // r1.y <- Output.Position.y
+                dp4 r1.z, r0.xyzw, cb8[9].xyzw  // r1.z <- Output.Position.z
+                dp4 r1.w, r0.xyzw, cb8[10].xyzw  // r1.w <- Output.Position.w
                 div r0.xy, r1.xyxx, r1.wwww  // r0.x <- Output.cpPos.x; r0.y <- Output.cpPos.y
                 mov o0.xyzw, r1.xyzw
                 mov o1.xy, r0.xyxx
                 ret 
-                // Approximately 22 instruction slots used
+                // Approximately 42 instruction slots used
                             
             };
             PixelShader = asm {
@@ -408,14 +442,17 @@ fxgroup
                 //
                 // }
                 //
-                // cbuffer cbPointLight
+                // cbuffer cbCapsuleLight
                 // {
                 //
-                //   float4 PointLightPos;              // Offset:    0 Size:    16
-                //   float4 PointLightRangeRcp;         // Offset:   16 Size:    16
-                //   float4 PointColor;                 // Offset:   32 Size:    16
-                //   float4 LightPerspectiveValues;     // Offset:   48 Size:    16 [unused]
-                //   float4x4 LightProjection;          // Offset:   64 Size:    64 [unused]
+                //   float4 CapsuleLightPos;            // Offset:    0 Size:    16
+                //   float4 CapsuleLightRangeRcp;       // Offset:   16 Size:    16
+                //   float4 CapsuleDir;                 // Offset:   32 Size:    16
+                //   float4 CapsuleLen;                 // Offset:   48 Size:    16
+                //   float4 CapsuleColor;               // Offset:   64 Size:    16
+                //   float4 HalfSegmentLen;             // Offset:   80 Size:    16 [unused]
+                //   float4 CapsuleRange;               // Offset:   96 Size:    16 [unused]
+                //   float4x4 LightProjection;          // Offset:  112 Size:    64 [unused]
                 //
                 // }
                 //
@@ -429,7 +466,7 @@ fxgroup
                 // NormalTexture                     texture  float3          2d    2        1
                 // SpecPowTexture                    texture  float4          2d    3        1
                 // cbGBufferUnpack                   cbuffer      NA          NA    7        1
-                // cbPointLight                      cbuffer      NA          NA    8        1
+                // cbCapsuleLight                    cbuffer      NA          NA    8        1
                 //
                 //
                 //
@@ -450,7 +487,7 @@ fxgroup
                 ps_5_0
                 dcl_globalFlags refactoringAllowed | skipOptimization
                 dcl_constantbuffer cb7[4], immediateIndexed
-                dcl_constantbuffer cb8[3], immediateIndexed
+                dcl_constantbuffer cb8[5], immediateIndexed
                 dcl_resource_texture2d (float,float,float,float) t0
                 dcl_resource_texture2d (float,float,float,float) t1
                 dcl_resource_texture2d (float,float,float,float) t2
@@ -465,19 +502,19 @@ fxgroup
                 //   v1.x <- In.cpPos.x; v1.y <- In.cpPos.y; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 8 "d:\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 8 "D:\Project\Shader-Practice\Media\deferredshading_capsulelight\hlsl.fx"
                 mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
                 
-                #line 233
+                #line 262
                 nop 
                 mov r0.zw, v0.xxxy
                 mov r1.xy, v1.xyxx
                 
-                #line 215
+                #line 244
                 nop 
                 ftoi r2.xy, r0.zwzz
                 
-                #line 171
+                #line 194
                 mov r2.xy, r2.xyxx  // r2.x <- location3.x; r2.y <- location3.y
                 mov r2.zw, l(0,0,0,0)  // r2.w <- location3.z
                 ld_indexable(texture2d)(float,float,float,float) r0.z, r2.xyww, t0.yzxw
@@ -485,12 +522,12 @@ fxgroup
                 nop 
                 mov r0.z, r0.z
                 
-                #line 153
+                #line 176
                 add r0.z, r0.z, cb7[0].w
                 div r3.z, cb7[0].z, r0.z  // r3.z <- linearDepth
                 mov r3.z, r3.z  // r3.z <- <ConvertZToLinearDepth return value>
                 
-                #line 174
+                #line 197
                 mov r3.z, r3.z  // r3.z <- Out.LinearDepth
                 ld_indexable(texture2d)(float,float,float,float) r4.xyzw, r2.xyww, t1.xyzw  // r4.x <- baseColorSpecInt.x; r4.y <- baseColorSpecInt.y; r4.z <- baseColorSpecInt.z; r4.w <- baseColorSpecInt.w
                 mov r4.xyz, r4.xyzx  // r4.x <- Out.Color.x; r4.y <- Out.Color.y; r4.z <- Out.Color.z
@@ -511,36 +548,36 @@ fxgroup
                 mov r4.xyz, r4.xyzx  // r4.x <- <UnpackGBuffer_Loc return value>.Color.x; r4.y <- <UnpackGBuffer_Loc return value>.Color.y; r4.z <- <UnpackGBuffer_Loc return value>.Color.z
                 mov r5.xyz, r5.xyzx  // r5.x <- <UnpackGBuffer_Loc return value>.Normal.x; r5.y <- <UnpackGBuffer_Loc return value>.Normal.y; r5.z <- <UnpackGBuffer_Loc return value>.Normal.z
                 
-                #line 215
+                #line 244
                 mov r4.xyz, r4.xyzx  // r4.x <- gbd.Color.x; r4.y <- gbd.Color.y; r4.z <- gbd.Color.z
                 mov r5.xyz, r5.xyzx  // r5.x <- gbd.Normal.x; r5.y <- gbd.Normal.y; r5.z <- gbd.Normal.z
                 mov r3.xyz, r3.xyzx  // r3.x <- gbd.SpecPow; r3.y <- gbd.SpecIntensity; r3.z <- gbd.LinearDepth
                 
-                #line 219
+                #line 248
                 nop 
                 mov r4.xyz, r4.xyzx
                 mov r5.xyz, r5.xyzx
                 mov r0.zw, r3.xxxy
                 
-                #line 143
+                #line 166
                 mov r5.xyz, r5.xyzx  // r5.x <- mat.normal.x; r5.y <- mat.normal.y; r5.z <- mat.normal.z
                 mov r4.xyz, r4.xyzx  // r4.x <- mat.diffuseColor.x; r4.y <- mat.diffuseColor.y; r4.z <- mat.diffuseColor.z
                 mul r0.y, r0.z, r0.y
                 add r0.z, r0.y, r0.x  // r0.z <- mat.specPow
                 mov r0.w, r0.w  // r0.w <- mat.specIntensity
                 
-                #line 219
+                #line 248
                 mov r5.xyz, r5.xyzx  // r5.x <- mat.normal.x; r5.y <- mat.normal.y; r5.z <- mat.normal.z
                 mov r4.xyz, r4.xyzx  // r4.x <- mat.diffuseColor.x; r4.y <- mat.diffuseColor.y; r4.z <- mat.diffuseColor.z
                 mov r0.z, r0.z  // r0.z <- mat.specPow
                 mov r0.w, r0.w  // r0.w <- mat.specIntensity
                 
-                #line 222
+                #line 251
                 nop 
                 mov r1.xy, r1.xyxx
                 mov r3.z, r3.z
                 
-                #line 161
+                #line 184
                 mul r0.xy, r1.xyxx, cb7[0].xyxx
                 mul r3.xy, r3.zzzz, r0.xyxx  // r3.x <- position.x; r3.y <- position.y
                 mov r3.z, r3.z  // r3.z <- position.z
@@ -549,39 +586,50 @@ fxgroup
                 dp4 r1.y, r3.xyzw, cb7[2].xyzw  // r1.y <- <CalcWorldPos return value>.y
                 dp4 r1.z, r3.xyzw, cb7[3].xyzw  // r1.z <- <CalcWorldPos return value>.z
                 
-                #line 222
+                #line 251
                 mov r1.xyz, r1.xyzx  // r1.x <- position.x; r1.y <- position.y; r1.z <- position.z
                 
-                #line 225
+                #line 254
                 nop 
                 mov r1.xyz, r1.xyzx
                 mov r5.xyz, r5.xyzx
                 mov r4.xyz, r4.xyzx
                 mov r0.zw, r0.zzzw
                 
-                #line 189
+                #line 211
                 mov r2.xyz, -r1.xyzx
-                add r2.xyz, r2.xyzx, cb8[0].xyzx  // r2.x <- ToLight.x; r2.y <- ToLight.y; r2.z <- ToLight.z
-                mov r1.xyz, -r1.xyzx
                 mov r3.x, cb7[1].w
                 mov r3.y, cb7[2].w
                 mov r3.z, cb7[3].w
-                add r1.xyz, r1.xyzx, r3.xyzx  // r1.x <- ToEye.x; r1.y <- ToEye.y; r1.z <- ToEye.z
-                dp3 r0.x, r2.xyzx, r2.xyzx
+                add r2.xyz, r2.xyzx, r3.xyzx  // r2.x <- ToEye.x; r2.y <- ToEye.y; r2.z <- ToEye.z
+                
+                #line 214
+                mov r3.xyz, -cb8[0].xyzx
+                add r3.xyz, r1.xyzx, r3.xyzx  // r3.x <- ToCapsuleStart.x; r3.y <- ToCapsuleStart.y; r3.z <- ToCapsuleStart.z
+                dp3 r0.x, r3.xyzx, cb8[2].xyzx
+                div r0.x, r0.x, cb8[3].x  // r0.x <- DistOnLine
+                max r0.x, r0.x, l(0.000000)
+                min r0.x, r0.x, l(1.000000)
+                mul r0.x, r0.x, cb8[3].x  // r0.x <- DistOnLine
+                mul r3.xyz, r0.xxxx, cb8[2].xyzx
+                add r3.xyz, r3.xyzx, cb8[0].xyzx  // r3.x <- PointOnLine.x; r3.y <- PointOnLine.y; r3.z <- PointOnLine.z
+                mov r1.xyz, -r1.xyzx
+                add r1.xyz, r1.xyzx, r3.xyzx  // r1.x <- ToLight.x; r1.y <- ToLight.y; r1.z <- ToLight.z
+                dp3 r0.x, r1.xyzx, r1.xyzx
                 sqrt r0.x, r0.x  // r0.x <- DistToLight
                 
-                #line 194
-                div r2.xyz, r2.xyzx, r0.xxxx
-                dp3 r0.y, r2.xyzx, r5.xyzx
+                #line 222
+                div r1.xyz, r1.xyzx, r0.xxxx
+                dp3 r0.y, r1.xyzx, r5.xyzx
                 max r0.y, r0.y, l(0.000000)
                 min r0.y, r0.y, l(1.000000)  // r0.y <- NDotL
                 mul r3.xyz, r0.yyyy, r4.xyzx  // r3.x <- finalColor.x; r3.y <- finalColor.y; r3.z <- finalColor.z
                 
-                #line 199
-                dp3 r0.y, r1.xyzx, r1.xyzx
+                #line 227
+                dp3 r0.y, r2.xyzx, r2.xyzx
                 rsq r0.y, r0.y
-                mul r1.xyz, r0.yyyy, r1.xyzx
-                add r1.xyz, r2.xyzx, r1.xyzx
+                mul r2.xyz, r0.yyyy, r2.xyzx
+                add r1.xyz, r1.xyzx, r2.xyzx
                 dp3 r0.y, r1.xyzx, r1.xyzx
                 rsq r0.y, r0.y
                 mul r1.xyz, r0.yyyy, r1.xyzx  // r1.x <- HalfWay.x; r1.y <- HalfWay.y; r1.z <- HalfWay.z
@@ -594,28 +642,28 @@ fxgroup
                 mul r0.y, r0.w, r0.y
                 add r0.yzw, r0.yyyy, r3.xxyz  // r0.y <- finalColor.x; r0.z <- finalColor.y; r0.w <- finalColor.z
                 
-                #line 205
+                #line 233
                 mul r0.x, r0.x, cb8[1].x
                 max r0.x, r0.x, l(0.000000)
                 min r0.x, r0.x, l(1.000000)
                 mov r0.x, -r0.x
                 add r0.x, r0.x, l(1.000000)  // r0.x <- DistToLightNorm
                 mul r0.x, r0.x, r0.x  // r0.x <- Attn
-                mul r1.xyz, r0.xxxx, cb8[2].xyzx
+                mul r1.xyz, r0.xxxx, cb8[4].xyzx
                 mul r0.xyz, r0.yzwy, r1.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
-                mov r0.xyz, r0.xyzx  // r0.x <- <CalcPoint return value>.x; r0.y <- <CalcPoint return value>.y; r0.z <- <CalcPoint return value>.z
+                mov r0.xyz, r0.xyzx  // r0.x <- <CalcCapsule return value>.x; r0.y <- <CalcCapsule return value>.y; r0.z <- <CalcCapsule return value>.z
                 
-                #line 225
+                #line 254
                 mov r0.xyz, r0.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
                 
-                #line 228
-                mov r0.xyz, r0.xyzx  // r0.x <- <PointLightCommonPS return value>.x; r0.y <- <PointLightCommonPS return value>.y; r0.z <- <PointLightCommonPS return value>.z
-                mov r0.w, l(1.000000)  // r0.w <- <PointLightCommonPS return value>.w
+                #line 257
+                mov r0.xyz, r0.xyzx  // r0.x <- <CapsuleLightCommonPS return value>.x; r0.y <- <CapsuleLightCommonPS return value>.y; r0.z <- <CapsuleLightCommonPS return value>.z
+                mov r0.w, l(1.000000)  // r0.w <- <CapsuleLightCommonPS return value>.w
                 
-                #line 233
+                #line 262
                 mov o0.xyzw, r0.xyzw
                 ret 
-                // Approximately 109 instruction slots used
+                // Approximately 118 instruction slots used
                             
             };
         }

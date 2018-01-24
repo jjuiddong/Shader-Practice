@@ -1,8 +1,8 @@
 //
-// DX11 Deferred Shading - Point Light
+// DX11 Deferred Shading - Spot Light
 //
 // HLSL-Development-Cookbook
-//	- Point light
+//	- Spot light
 // 
 
 #include "../../../../../Common/Common/common.h"
@@ -20,19 +20,24 @@ struct sCbDirightPS
 	XMVECTOR AmbientRange;
 };
 
-struct sCbPointLight
+struct sCbSpotLight
 {
-	XMVECTOR PointLightPos;
-	XMVECTOR PointLightRangeRcp;
-	XMVECTOR PointColor;
-	XMVECTOR LightPerspectiveValues;
+	XMVECTOR SpotLightPos;
+	XMVECTOR SpotLightRangeRcp;
+	XMVECTOR SpotDirToLight;
+	XMVECTOR SpotCosOuterCone;
+	XMVECTOR SpotColor;
+	XMVECTOR SpotCosConeAttRange;
+
 	XMMATRIX LightProjection;
+	XMVECTOR SinAngle;
+	XMVECTOR CosAngle;
 };
 
 
-static const char *g_hlslPath = "../Media/deferredshading_pointlight/hlsl.fxo";
-static const char *g_dirlightPath = "../Media/deferredshading_pointlight/dirlight.fxo";
-static const char *g_deferredShaderPath = "../Media/deferredshading_pointlight/deferredshading.fxo";
+static const char *g_hlslPath = "../Media/deferredshading_spotlight/hlsl.fxo";
+static const char *g_dirlightPath = "../Media/deferredshading_spotlight/dirlight.fxo";
+static const char *g_deferredShaderPath = "../Media/deferredshading_spotlight/deferredshading.fxo";
 
 class cViewer : public framework::cGameMain
 {
@@ -51,7 +56,7 @@ public:
 
 protected:
 	void RenderDirectionalLight();
-	void RenderPointLight(const int lightIdx);
+	void RenderSpotLight(const int lightIdx);
 
 
 public:
@@ -62,7 +67,7 @@ public:
 	cGBuffer m_gbuff;
 
 	cConstantBuffer<sCbDirightPS> m_cbDirLight;
-	cConstantBuffer<sCbPointLight> m_cbPointLight;	
+	cConstantBuffer<sCbSpotLight> m_cbSpotLight;
 	Vector3 m_ambientDown;
 	Vector3 m_ambientUp;
 	ID3D11RasterizerState* m_pNoDepthClipFrontRS;
@@ -72,13 +77,12 @@ public:
 
 	int m_renderType; //0=new, 1=old
 	bool m_isAnimate;
-	Vector3 m_dirLightPos;
-	Vector3 m_pointLightPos[4];
-	float m_pointLightRange;
+	Vector3 m_SpotLightPos[4];
+	Vector3 m_SpotLightDir[4];
 	Vector3 m_pointLightColor[4];
-
-	Vector3 m_capsuleLightLength;
-	Vector3 m_capuselLightRange;
+	float m_innerAngle;
+	float m_outerAngle;
+	float m_spotLightRange;
 
 	sf::Vector2i m_mousePos;
 	float m_moveLen;
@@ -97,16 +101,13 @@ cViewer::cViewer()
 	, m_pNoDepthWriteLessStencilMaskState(NULL)
 	, m_pNoDepthWriteGreatherStencilMaskState(NULL)
 {
-	m_windowName = L"DX11 DeferredShading - Point Light";
+	m_windowName = L"DX11 DeferredShading - Spot Light";
 	const RECT r = { 0, 0, 1280, 1024 };
 	m_windowRect = r;
 	m_moveLen = 0;
 	m_mouseDown[0] = false;
 	m_mouseDown[1] = false;
 	m_mouseDown[2] = false;
-
-	m_capsuleLightLength.x = 1.f;
-	m_capuselLightRange.x = 4.f;
 
 	m_ambientDown = Vector3(0.f, 0.f, 0.f);
 	m_ambientUp = Vector3(0.f, 0.f, 0.f);
@@ -141,7 +142,7 @@ bool cViewer::OnInit()
 	m_gui.Init(m_hWnd, m_renderer.GetDevice(), m_renderer.GetDevContext(), NULL);
 
 	m_cbDirLight.Create(m_renderer);
-	m_cbPointLight.Create(m_renderer);
+	m_cbSpotLight.Create(m_renderer);
 
 	GetMainLight().Init(cLight::LIGHT_DIRECTIONAL,
 		Vector4(0.f, 0.f, 0.f, 1), Vector4(0.f, 0.f, 0.f, 1),
@@ -150,16 +151,19 @@ bool cViewer::OnInit()
 	const Vector3 lightLookat(1, 300.f, 1);
 	GetMainLight().SetPosition(lightPos);
 	GetMainLight().SetDirection((lightLookat - lightPos).Normal());
-	m_dirLightPos = lightPos;
-	m_pointLightPos[0] = Vector3(0, 1.5f, 1.5f);
-	m_pointLightPos[1] = Vector3(1.5f, 1.5f, 0.f);
-	m_pointLightPos[2] = Vector3(-1.5f, 1.5f, 0);
-	m_pointLightPos[3] = Vector3(0, 1.5f, -1.5f);
-	m_pointLightRange = 3.f;
+	const float len = 2.5f;
+	m_SpotLightPos[0] = Vector3(0, 1.5f, len);
+	m_SpotLightPos[1] = Vector3(len, 1.5f, 0.f);
+	m_SpotLightPos[2] = Vector3(-len, 1.5f, 0);
+	m_SpotLightPos[3] = Vector3(0, 1.5f, -len);
+	m_spotLightRange = 4.5f;
 	m_pointLightColor[0] = Vector3(1, 1, 1);
 	m_pointLightColor[1] = Vector3(1, 0, 0);
 	m_pointLightColor[2] = Vector3(0, 1, 0);
 	m_pointLightColor[3] = Vector3(0, 0, 1);
+	
+	m_innerAngle = ANGLE2RAD(45);
+	m_outerAngle = ANGLE2RAD(55);
 
 	int idx = 0;
 	for (int x = 0; x < 8; ++x)
@@ -251,11 +255,11 @@ void cViewer::OnRender(const float deltaSeconds)
 	if (ImGui::Begin("Information", NULL, ImVec2(300, 600)))
 	{
 		ImGui::Checkbox("Animate", &m_isAnimate);
-		ImGui::DragFloat("Range", &m_pointLightRange, 0.01f, 0.f, 100.f);
-		ImGui::ColorEdit3("Point Light Color1", (float*)&m_pointLightColor[0]);
-		ImGui::ColorEdit3("Point Light Color2", (float*)&m_pointLightColor[1]);
-		ImGui::ColorEdit3("Point Light Color3", (float*)&m_pointLightColor[2]);
-		ImGui::ColorEdit3("Point Light Color4", (float*)&m_pointLightColor[3]);
+		ImGui::DragFloat("Range", &m_spotLightRange, 0.01f, 0.f, 100.f);
+		ImGui::ColorEdit3("Spot Light Color1", (float*)&m_pointLightColor[0]);
+		ImGui::ColorEdit3("Spot Light Color2", (float*)&m_pointLightColor[1]);
+		ImGui::ColorEdit3("Spot Light Color3", (float*)&m_pointLightColor[2]);
+		ImGui::ColorEdit3("Spot Light Color4", (float*)&m_pointLightColor[3]);
 
 		ImGui::ColorEdit3("Ambient Down", (float*)&m_ambientDown);
 		ImGui::ColorEdit3("Ambient Up", (float*)&m_ambientUp);
@@ -278,7 +282,7 @@ void cViewer::OnRender(const float deltaSeconds)
 	}
 
 	// Render Deferred Shading to GBuffer
-	if (m_gbuff.Begin(m_renderer))
+	if (1 && m_gbuff.Begin(m_renderer))
 	{
 		GetMainCamera().Bind(m_renderer);
 
@@ -288,16 +292,15 @@ void cViewer::OnRender(const float deltaSeconds)
 
 		for (int i = 0; i < 4; ++i)
 		{
-			const Vector3 lightPos = m_pointLightPos[i] * tm;
-			const Vector3 lightLookat(0, lightPos.y, 0);
-			const Vector3 norm = (lightLookat - lightPos).Normal();
-			const Vector3 lightDir = (Vector3(0, 1, 0).CrossProduct(-norm)).Normal();
-			const Vector3 lightStartPos = lightPos - (lightDir * (m_capsuleLightLength.x / 2.f));
+			const Vector3 lightPos = m_SpotLightPos[i] * tm;
+			const Vector3 lightLookat(0, 0, 0);// lightPos.y, 0);
+			const Vector3 lightDir = (lightLookat - lightPos).Normal();
 
-			m_pointLightPos[i] = lightPos;
-			GetMainLight().SetPosition(lightStartPos);
-			GetMainLight().SetDirection(lightDir);
-			GetMainLight().Bind(m_renderer);
+			m_SpotLightPos[i] = lightPos;
+			m_SpotLightDir[i] = lightDir;
+			//GetMainLight().SetPosition(lightPos);
+			//GetMainLight().SetDirection(lightDir);
+			//GetMainLight().Bind(m_renderer);
 
 			m_renderer.m_dbgSphere.SetPos(lightPos);
 			m_renderer.m_dbgSphere.SetRadius(0.1f);
@@ -329,21 +332,16 @@ void cViewer::OnRender(const float deltaSeconds)
 		ID3D11DepthStencilState* pPrevDepthState;
 		UINT nPrevStencil;
 		devContext->OMGetDepthStencilState(&pPrevDepthState, &nPrevStencil);
-
 		RenderDirectionalLight();
 
-		//CommonStates state(m_renderer.GetDevice());
-		//float factor[4] = { 1,1,1,1 };
-		//devContext->OMSetBlendState(state.Additive(), factor, 0xffffffff);
 		ID3D11BlendState* pPrevBlendState;
 		FLOAT prevBlendFactor[4];
 		UINT prevSampleMask;
 		devContext->OMGetBlendState(&pPrevBlendState, prevBlendFactor, &prevSampleMask);
 		devContext->OMSetBlendState(m_pAdditiveBlendState, prevBlendFactor, prevSampleMask);
 
-		for (int i=0; i < 4; ++i)
-			RenderPointLight(i);
-		//devContext->OMSetBlendState(state.NonPremultiplied(), factor, 0xffffffff);
+		for (int i = 0; i < 4; ++i)
+			RenderSpotLight(i);
 
 		devContext->OMSetBlendState(pPrevBlendState, prevBlendFactor, prevSampleMask);
 		SAFE_RELEASE(pPrevBlendState);
@@ -408,10 +406,15 @@ void cViewer::RenderDirectionalLight()
 }
 
 
-void cViewer::RenderPointLight(const int lightIdx)
+void cViewer::RenderSpotLight(const int lightIdx)
 {
-	const float lightRange = m_pointLightRange;
-	const Vector3 lightPos = m_pointLightPos[lightIdx];
+	const float fCosInnerAngle = cosf(m_innerAngle);
+	const float fSinOuterAngle = sinf(m_outerAngle);
+	const float fCosOuterAngle = cosf(m_outerAngle);
+
+	const float lightRange = m_spotLightRange;
+	const Vector3 lightPos = m_SpotLightPos[lightIdx];
+	const Vector3 lightDir = m_SpotLightDir[lightIdx];
 	const Vector3 lightScale(lightRange, lightRange, lightRange);
 	const Vector3 lightColor = m_pointLightColor[lightIdx];
 
@@ -440,25 +443,30 @@ void cViewer::RenderPointLight(const int lightIdx)
 	m_cbDirLight.Update(m_renderer, 6);
 	m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
 
-	m_cbPointLight.m_v->PointLightPos = lightPos.GetVectorXM();
-	m_cbPointLight.m_v->PointLightRangeRcp = (Vector3(1, 1, 1) / lightRange).GetVectorXM();
-	m_cbPointLight.m_v->PointColor = GammaToLinear(lightColor).GetVectorXM();
-	m_cbPointLight.m_v->LightPerspectiveValues = Vector3(0, 0, 0).GetVectorXM();
+	m_cbSpotLight.m_v->SpotLightPos = lightPos.GetVectorXM();
+	m_cbSpotLight.m_v->SpotDirToLight = -lightDir.GetVectorXM();
+	m_cbSpotLight.m_v->SpotLightRangeRcp = (Vector3(1, 1, 1) * (1.f/lightRange)).GetVectorXM();
+	m_cbSpotLight.m_v->SpotColor = GammaToLinear(lightColor).GetVectorXM();
+	m_cbSpotLight.m_v->SpotCosOuterCone = (Vector3(1, 1, 1) * fCosOuterAngle).GetVectorXM();
+	m_cbSpotLight.m_v->SpotCosConeAttRange = (Vector3(1, 1, 1) * (fCosInnerAngle - fCosOuterAngle)).GetVectorXM();
+
+	m_cbSpotLight.m_v->CosAngle = (Vector3(1, 1, 1) * fCosOuterAngle).GetVectorXM();
+	m_cbSpotLight.m_v->SinAngle = (Vector3(1, 1, 1) * fSinOuterAngle).GetVectorXM();
 
 	Matrix44 lightProj;
-	Matrix44 S;
-	S.SetScale(lightScale);
-	Matrix44 T;
-	T.SetTranslate(lightPos);
-	lightProj = S * T * GetMainCamera().GetViewProjectionMatrix();
-	m_cbPointLight.m_v->LightProjection = XMMatrixTranspose(lightProj.GetMatrixXM());
-	m_cbPointLight.Update(m_renderer, 8);
+	Transform lightTfm;
+	lightTfm.scale = lightScale;
+	lightTfm.pos = lightPos;
+	lightTfm.rot.SetRotationArc(Vector3(0, 0, 1), lightDir);
+	lightProj = lightTfm.GetMatrix() * GetMainCamera().GetViewProjectionMatrix();
+	m_cbSpotLight.m_v->LightProjection = XMMatrixTranspose(lightProj.GetMatrixXM());
+	m_cbSpotLight.Update(m_renderer, 8);
 
 	devContext->IASetInputLayout(NULL);
 	devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
 	devContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST);
 
-	devContext->Draw(2, 0);
+	devContext->Draw(1, 0);
 
 	devContext->RSSetState(pPrevRSState);
 	SAFE_RELEASE(pPrevRSState);

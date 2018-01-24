@@ -1,8 +1,8 @@
 //
-// DX11 Deferred Shading - Point Light
+// DX11 Deferred Shading - Capsule Light
 //
 // HLSL-Development-Cookbook
-//	- Point light
+//	- Capsule light
 // 
 
 #include "../../../../../Common/Common/common.h"
@@ -20,19 +20,23 @@ struct sCbDirightPS
 	XMVECTOR AmbientRange;
 };
 
-struct sCbPointLight
+struct sCbCapsuleLight
 {
-	XMVECTOR PointLightPos;
-	XMVECTOR PointLightRangeRcp;
-	XMVECTOR PointColor;
-	XMVECTOR LightPerspectiveValues;
+	XMVECTOR CapsuleLightPos;
+	XMVECTOR CapsuleLightRangeRcp;
+	XMVECTOR CapsuleLightDir;
+	XMVECTOR CapsuleLightLen;
+	XMVECTOR CapsuleColor;
+
+	XMVECTOR HalfSegmentLen;
+	XMVECTOR CapsuleRange;
 	XMMATRIX LightProjection;
 };
 
 
-static const char *g_hlslPath = "../Media/deferredshading_pointlight/hlsl.fxo";
-static const char *g_dirlightPath = "../Media/deferredshading_pointlight/dirlight.fxo";
-static const char *g_deferredShaderPath = "../Media/deferredshading_pointlight/deferredshading.fxo";
+static const char *g_hlslPath = "../Media/deferredshading_capsulelight/hlsl.fxo";
+static const char *g_dirlightPath = "../Media/deferredshading_capsulelight/dirlight.fxo";
+static const char *g_deferredShaderPath = "../Media/deferredshading_capsulelight/deferredshading.fxo";
 
 class cViewer : public framework::cGameMain
 {
@@ -51,7 +55,7 @@ public:
 
 protected:
 	void RenderDirectionalLight();
-	void RenderPointLight(const int lightIdx);
+	void RenderCapsuleLight(const int lightIdx);
 
 
 public:
@@ -62,7 +66,7 @@ public:
 	cGBuffer m_gbuff;
 
 	cConstantBuffer<sCbDirightPS> m_cbDirLight;
-	cConstantBuffer<sCbPointLight> m_cbPointLight;	
+	cConstantBuffer<sCbCapsuleLight> m_cbCapsuleLight;
 	Vector3 m_ambientDown;
 	Vector3 m_ambientUp;
 	ID3D11RasterizerState* m_pNoDepthClipFrontRS;
@@ -73,7 +77,8 @@ public:
 	int m_renderType; //0=new, 1=old
 	bool m_isAnimate;
 	Vector3 m_dirLightPos;
-	Vector3 m_pointLightPos[4];
+	Vector3 m_capsuleLightPos[4];
+	Vector3 m_capsuleLightDir[4];
 	float m_pointLightRange;
 	Vector3 m_pointLightColor[4];
 
@@ -97,7 +102,7 @@ cViewer::cViewer()
 	, m_pNoDepthWriteLessStencilMaskState(NULL)
 	, m_pNoDepthWriteGreatherStencilMaskState(NULL)
 {
-	m_windowName = L"DX11 DeferredShading - Point Light";
+	m_windowName = L"DX11 DeferredShading - Capsule Light";
 	const RECT r = { 0, 0, 1280, 1024 };
 	m_windowRect = r;
 	m_moveLen = 0;
@@ -141,7 +146,7 @@ bool cViewer::OnInit()
 	m_gui.Init(m_hWnd, m_renderer.GetDevice(), m_renderer.GetDevContext(), NULL);
 
 	m_cbDirLight.Create(m_renderer);
-	m_cbPointLight.Create(m_renderer);
+	m_cbCapsuleLight.Create(m_renderer);
 
 	GetMainLight().Init(cLight::LIGHT_DIRECTIONAL,
 		Vector4(0.f, 0.f, 0.f, 1), Vector4(0.f, 0.f, 0.f, 1),
@@ -151,11 +156,11 @@ bool cViewer::OnInit()
 	GetMainLight().SetPosition(lightPos);
 	GetMainLight().SetDirection((lightLookat - lightPos).Normal());
 	m_dirLightPos = lightPos;
-	m_pointLightPos[0] = Vector3(0, 1.5f, 1.5f);
-	m_pointLightPos[1] = Vector3(1.5f, 1.5f, 0.f);
-	m_pointLightPos[2] = Vector3(-1.5f, 1.5f, 0);
-	m_pointLightPos[3] = Vector3(0, 1.5f, -1.5f);
-	m_pointLightRange = 3.f;
+	m_capsuleLightPos[0] = Vector3(0, 1.5f, 1.5f);
+	m_capsuleLightPos[1] = Vector3(1.5f, 1.5f, 0.f);
+	m_capsuleLightPos[2] = Vector3(-1.5f, 1.5f, 0);
+	m_capsuleLightPos[3] = Vector3(0, 1.5f, -1.5f);
+	m_pointLightRange = 2.f;
 	m_pointLightColor[0] = Vector3(1, 1, 1);
 	m_pointLightColor[1] = Vector3(1, 0, 0);
 	m_pointLightColor[2] = Vector3(0, 1, 0);
@@ -252,10 +257,10 @@ void cViewer::OnRender(const float deltaSeconds)
 	{
 		ImGui::Checkbox("Animate", &m_isAnimate);
 		ImGui::DragFloat("Range", &m_pointLightRange, 0.01f, 0.f, 100.f);
-		ImGui::ColorEdit3("Point Light Color1", (float*)&m_pointLightColor[0]);
-		ImGui::ColorEdit3("Point Light Color2", (float*)&m_pointLightColor[1]);
-		ImGui::ColorEdit3("Point Light Color3", (float*)&m_pointLightColor[2]);
-		ImGui::ColorEdit3("Point Light Color4", (float*)&m_pointLightColor[3]);
+		ImGui::ColorEdit3("Capsule Light Color1", (float*)&m_pointLightColor[0]);
+		ImGui::ColorEdit3("Capsule Light Color2", (float*)&m_pointLightColor[1]);
+		ImGui::ColorEdit3("Capsule Light Color3", (float*)&m_pointLightColor[2]);
+		ImGui::ColorEdit3("Capsule Light Color4", (float*)&m_pointLightColor[3]);
 
 		ImGui::ColorEdit3("Ambient Down", (float*)&m_ambientDown);
 		ImGui::ColorEdit3("Ambient Up", (float*)&m_ambientUp);
@@ -278,7 +283,7 @@ void cViewer::OnRender(const float deltaSeconds)
 	}
 
 	// Render Deferred Shading to GBuffer
-	if (m_gbuff.Begin(m_renderer))
+	if (1 && m_gbuff.Begin(m_renderer))
 	{
 		GetMainCamera().Bind(m_renderer);
 
@@ -288,20 +293,23 @@ void cViewer::OnRender(const float deltaSeconds)
 
 		for (int i = 0; i < 4; ++i)
 		{
-			const Vector3 lightPos = m_pointLightPos[i] * tm;
+			const Vector3 lightPos = m_capsuleLightPos[i] * tm;
 			const Vector3 lightLookat(0, lightPos.y, 0);
 			const Vector3 norm = (lightLookat - lightPos).Normal();
 			const Vector3 lightDir = (Vector3(0, 1, 0).CrossProduct(-norm)).Normal();
 			const Vector3 lightStartPos = lightPos - (lightDir * (m_capsuleLightLength.x / 2.f));
 
-			m_pointLightPos[i] = lightPos;
+			m_capsuleLightPos[i] = lightPos;
+			m_capsuleLightDir[i] = lightDir;
 			GetMainLight().SetPosition(lightStartPos);
 			GetMainLight().SetDirection(lightDir);
 			GetMainLight().Bind(m_renderer);
 
-			m_renderer.m_dbgSphere.SetPos(lightPos);
-			m_renderer.m_dbgSphere.SetRadius(0.1f);
-			m_renderer.m_dbgSphere.Render(m_renderer);
+			//m_renderer.m_dbgSphere.SetPos(lightPos);
+			//m_renderer.m_dbgSphere.SetRadius(0.1f);
+			//m_renderer.m_dbgSphere.Render(m_renderer);
+			m_renderer.m_dbgLine.SetLine(lightStartPos, lightStartPos + lightDir*m_capsuleLightLength.x, 0.01f);
+			m_renderer.m_dbgLine.Render(m_renderer);
 		}
 
 		m_ground.Render(m_renderer);
@@ -329,21 +337,16 @@ void cViewer::OnRender(const float deltaSeconds)
 		ID3D11DepthStencilState* pPrevDepthState;
 		UINT nPrevStencil;
 		devContext->OMGetDepthStencilState(&pPrevDepthState, &nPrevStencil);
-
 		RenderDirectionalLight();
 
-		//CommonStates state(m_renderer.GetDevice());
-		//float factor[4] = { 1,1,1,1 };
-		//devContext->OMSetBlendState(state.Additive(), factor, 0xffffffff);
 		ID3D11BlendState* pPrevBlendState;
 		FLOAT prevBlendFactor[4];
 		UINT prevSampleMask;
 		devContext->OMGetBlendState(&pPrevBlendState, prevBlendFactor, &prevSampleMask);
 		devContext->OMSetBlendState(m_pAdditiveBlendState, prevBlendFactor, prevSampleMask);
-
-		for (int i=0; i < 4; ++i)
-			RenderPointLight(i);
-		//devContext->OMSetBlendState(state.NonPremultiplied(), factor, 0xffffffff);
+		
+		for (int i = 0; i < 4; ++i)
+			RenderCapsuleLight(i);
 
 		devContext->OMSetBlendState(pPrevBlendState, prevBlendFactor, prevSampleMask);
 		SAFE_RELEASE(pPrevBlendState);
@@ -408,10 +411,12 @@ void cViewer::RenderDirectionalLight()
 }
 
 
-void cViewer::RenderPointLight(const int lightIdx)
+void cViewer::RenderCapsuleLight(const int lightIdx)
 {
 	const float lightRange = m_pointLightRange;
-	const Vector3 lightPos = m_pointLightPos[lightIdx];
+	const float lightLen = 2.f;
+	const Vector3 lightPos = m_capsuleLightPos[lightIdx];
+	const Vector3 lightDir = m_capsuleLightDir[lightIdx];
 	const Vector3 lightScale(lightRange, lightRange, lightRange);
 	const Vector3 lightColor = m_pointLightColor[lightIdx];
 
@@ -440,19 +445,22 @@ void cViewer::RenderPointLight(const int lightIdx)
 	m_cbDirLight.Update(m_renderer, 6);
 	m_gbuff.m_cbGBuffer.Update(m_renderer, 7);
 
-	m_cbPointLight.m_v->PointLightPos = lightPos.GetVectorXM();
-	m_cbPointLight.m_v->PointLightRangeRcp = (Vector3(1, 1, 1) / lightRange).GetVectorXM();
-	m_cbPointLight.m_v->PointColor = GammaToLinear(lightColor).GetVectorXM();
-	m_cbPointLight.m_v->LightPerspectiveValues = Vector3(0, 0, 0).GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleLightPos = lightPos.GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleLightDir = lightDir.GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleLightRangeRcp = (Vector3(1, 1, 1) / lightRange).GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleLightLen = (Vector3(1, 1, 1)*lightLen).GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleColor = GammaToLinear(lightColor).GetVectorXM();
+	m_cbCapsuleLight.m_v->HalfSegmentLen = (Vector3(1, 1, 1) * (lightLen * 0.5f)).GetVectorXM();
+	m_cbCapsuleLight.m_v->CapsuleRange = (Vector3(1, 1, 1) * lightRange).GetVectorXM();
 
 	Matrix44 lightProj;
-	Matrix44 S;
-	S.SetScale(lightScale);
-	Matrix44 T;
-	T.SetTranslate(lightPos);
-	lightProj = S * T * GetMainCamera().GetViewProjectionMatrix();
-	m_cbPointLight.m_v->LightProjection = XMMatrixTranspose(lightProj.GetMatrixXM());
-	m_cbPointLight.Update(m_renderer, 8);
+	Transform lightTfm;
+	lightTfm.scale = lightScale;
+	lightTfm.pos = lightPos;
+	lightTfm.rot.SetRotationArc(Vector3(0,0,1), lightDir);
+	lightProj = lightTfm.GetMatrix() * GetMainCamera().GetViewProjectionMatrix();
+	m_cbCapsuleLight.m_v->LightProjection = XMMatrixTranspose(lightProj.GetMatrixXM());
+	m_cbCapsuleLight.Update(m_renderer, 8);
 
 	devContext->IASetInputLayout(NULL);
 	devContext->IASetVertexBuffers(0, 0, NULL, NULL, NULL);
