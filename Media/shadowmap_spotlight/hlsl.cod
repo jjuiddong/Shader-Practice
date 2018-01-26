@@ -1,0 +1,708 @@
+//
+// FX Version: fx_5_0
+//
+// 10 local buffer(s)
+//
+cbuffer $Globals
+{
+    float4  g_outlineColor = { 0.800000012, 0, 0, 1 };// Offset:    0, size:   16
+}
+
+cbuffer cbPerFrame : register(b0)
+{
+    float4x4 gWorld;                    // Offset:    0, size:   64
+    float4x4 gView;                     // Offset:   64, size:   64
+    float4x4 gProjection;               // Offset:  128, size:   64
+    float4x4 gLightView[3];             // Offset:  192, size:  192
+    float4x4 gLightProj[3];             // Offset:  384, size:  192
+    float4x4 gLightTT;                  // Offset:  576, size:   64
+    float3  gEyePosW;                   // Offset:  640, size:   12
+}
+
+cbuffer cbLight : register(b1)
+{
+    float4  gLight_Ambient;             // Offset:    0, size:   16
+    float4  gLight_Diffuse;             // Offset:   16, size:   16
+    float4  gLight_Specular;            // Offset:   32, size:   16
+    float3  gLight_Direction;           // Offset:   48, size:   12
+    float3  gLight_PosW;                // Offset:   64, size:   12
+    float3  gLight_SpecIntensity;       // Offset:   80, size:   12
+}
+
+cbuffer cbMaetrial : register(b2)
+{
+    float4  gMtrl_Ambient;              // Offset:    0, size:   16
+    float4  gMtrl_Diffuse;              // Offset:   16, size:   16
+    float4  gMtrl_Specular;             // Offset:   32, size:   16
+    float4  gMtrl_Emissive;             // Offset:   48, size:   16
+    float   gMtrl_Pow;                  // Offset:   64, size:    4
+}
+
+cbuffer cbPerFrameInstancing : register(b3)
+{
+    float4x4 gWorldInst[256];           // Offset:    0, size: 16384
+}
+
+cbuffer cbClipPlane : register(b4)
+{
+    float4  gClipPlane;                 // Offset:    0, size:   16
+}
+
+cbuffer cbSkinning : register(b5)
+{
+    float4x4 gPalette[64];              // Offset:    0, size: 4096
+}
+
+cbuffer cbDirLight : register(b6)
+{
+    float4  AmbientDown;                // Offset:    0, size:   16
+    float4  AmbientRange;               // Offset:   16, size:   16
+}
+
+cbuffer cbGBufferUnpack : register(b7)
+{
+    float4  PerspectiveValues;          // Offset:    0, size:   16
+    float4x4 ViewInv;                   // Offset:   16, size:   64
+}
+
+cbuffer cbSpotLight : register(b8)
+{
+    float4  SpotLightPos;               // Offset:    0, size:   16
+    float4  SpotLightRangeRcp;          // Offset:   16, size:   16
+    float4  SpotDirToLight;             // Offset:   32, size:   16
+    float4  SpotCosOuterCone;           // Offset:   48, size:   16
+    float4  SpotColor;                  // Offset:   64, size:   16
+    float4  SpotCosConeAttRange;        // Offset:   80, size:   16
+    float4x4 LightProjection;           // Offset:   96, size:   64
+    float4  SinAngle;                   // Offset:  160, size:   16
+    float4  CosAngle;                   // Offset:  176, size:   16
+    float4x4 ToShadowmap;               // Offset:  192, size:   64
+}
+
+//
+// 22 local object(s)
+//
+Texture2D txDiffuse;
+Texture2D txBump;
+Texture2D txSpecular;
+Texture2D txEmissive;
+Texture2D txShadow0;
+Texture2D txShadow1;
+Texture2D txShadow2;
+Texture2D txDepth;
+SamplerState samLinear
+{
+    Filter   = uint(MIN_MAG_MIP_LINEAR /* 21 */);
+    AddressU = uint(CLAMP /* 3 */);
+    AddressV = uint(CLAMP /* 3 */);
+    BorderColor = float4(1, 1, 1, 1);
+};
+SamplerComparisonState samShadow
+{
+    Filter   = uint(COMPARISON_MIN_MAG_LINEAR_MIP_POINT /* 148 */);
+    AddressU = uint(BORDER /* 4 */);
+    AddressV = uint(BORDER /* 4 */);
+    AddressW = uint(BORDER /* 4 */);
+    BorderColor = float4(1, 1, 1, 1);
+};
+SamplerComparisonState samDepth
+{
+    Filter   = uint(COMPARISON_MIN_MAG_LINEAR_MIP_POINT /* 148 */);
+    AddressU = uint(BORDER /* 4 */);
+    AddressV = uint(BORDER /* 4 */);
+    AddressW = uint(BORDER /* 4 */);
+    BorderColor = float4(0, 0, 0, 0);
+    ComparisonFunc = uint(LESS_EQUAL /* 4 */);
+};
+SamplerState samAnis
+{
+    Filter   = uint(ANISOTROPIC /* 85 */);
+    AddressU = uint(WRAP /* 1 */);
+    AddressV = uint(WRAP /* 1 */);
+};
+RasterizerState Depth
+{
+    DepthBias = uint(10000);
+    DepthBiasClamp = float(0);
+    SlopeScaledDepthBias = float(1);
+};
+RasterizerState NoCull
+{
+    CullMode = uint(NONE /* 1 */);
+};
+DepthStencilState DepthNormal
+{
+    DepthFunc = uint(LESS_EQUAL /* 4 */);
+    DepthEnable = bool(TRUE /* 1 */);
+};
+DepthStencilState NoDepthStencil
+{
+    DepthEnable = bool(FALSE /* 0 */);
+};
+Texture2D DepthTexture;
+Texture2D ColorSpecIntTexture;
+Texture2D NormalTexture;
+Texture2D SpecPowTexture;
+Texture2D SpotShadowMapTexture;
+SamplerComparisonState PCFSampler
+{
+    Filter   = uint(COMPARISON_MIN_MAG_LINEAR_MIP_POINT /* 148 */);
+    AddressU = uint(BORDER /* 4 */);
+    AddressV = uint(BORDER /* 4 */);
+    AddressW = uint(BORDER /* 4 */);
+    BorderColor = float4(1, 1, 1, 1);
+    ComparisonFunc = uint(LESS_EQUAL /* 4 */);
+};
+
+//
+// 1 groups(s)
+//
+fxgroup
+{
+    //
+    // 1 technique(s)
+    //
+    technique11 Unlit
+    {
+        pass P0
+        {
+            VertexShader = asm {
+                //
+                // Generated by Microsoft (R) HLSL Shader Compiler 6.3.9600.16384
+                //
+                //
+                //
+                // Input signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // no Input
+                //
+                // Output signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_Position              0   xyzw        0      POS   float   xyzw
+                //
+                vs_5_0
+                dcl_globalFlags refactoringAllowed | skipOptimization
+                dcl_output_siv o0.xyzw, position
+                //
+                // Initial variable locations:
+                //   o0.x <- <VS return value>.x; o0.y <- <VS return value>.y; o0.z <- <VS return value>.z; o0.w <- <VS return value>.w
+                //
+                #line 64 "D:\Project\Shader-Practice\Media\shadowmap_spotlight\hlsl.fx"
+                mov o0.xyzw, l(0,0,0,1.000000)
+                ret 
+                // Approximately 2 instruction slots used
+                            
+            };
+            GeometryShader = NULL;
+            HullShader = asm {
+                //
+                // Generated by Microsoft (R) HLSL Shader Compiler 6.3.9600.16384
+                //
+                //
+                //
+                // Patch Constant signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_TessFactor            0   x           0 QUADEDGE   float   x   
+                // SV_TessFactor            1   x           1 QUADEDGE   float   x   
+                // SV_TessFactor            2   x           2 QUADEDGE   float   x   
+                // SV_TessFactor            3   x           3 QUADEDGE   float   x   
+                // SV_InsideTessFactor      0   x           4  QUADINT   float   x   
+                // SV_InsideTessFactor      1   x           5  QUADINT   float   x   
+                //
+                //
+                // Input signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // no Input
+                //
+                // Output signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // POSITION                 0   xyz         0     NONE   float   xyz 
+                //
+                // Tessellation Domain   # of control points
+                // -------------------- --------------------
+                // Quadrilateral                           4
+                //
+                // Tessellation Output Primitive  Partitioning Type 
+                // ------------------------------ ------------------
+                // Counter-Clockwise Triangles    Integer           
+                //
+                hs_5_0
+                hs_decls 
+                dcl_input_control_point_count 1
+                dcl_output_control_point_count 4
+                dcl_tessellator_domain domain_quad
+                dcl_tessellator_partitioning partitioning_integer
+                dcl_tessellator_output_primitive output_triangle_ccw
+                dcl_globalFlags refactoringAllowed | skipOptimization
+                hs_control_point_phase 
+                dcl_output o0.xyz
+                dcl_temps 1
+                //
+                // Initial variable locations:
+                //   vPrim.x <- PatchID; 
+                //   o0.x <- <SpotLightHS return value>.Position.x; o0.y <- <SpotLightHS return value>.Position.y; o0.z <- <SpotLightHS return value>.Position.z
+                //
+                #line 102 "D:\Project\Shader-Practice\Media\shadowmap_spotlight\hlsl.fx"
+                mov r0.xyz, l(0,0,0,0)  // r0.x <- Output.Position.x; r0.y <- Output.Position.y; r0.z <- Output.Position.z
+                mov o0.xyz, r0.xyzx
+                ret 
+                hs_join_phase 
+                dcl_output_siv o0.x, finalQuadUeq0EdgeTessFactor
+                dcl_output_siv o1.x, finalQuadVeq0EdgeTessFactor
+                dcl_output_siv o2.x, finalQuadUeq1EdgeTessFactor
+                dcl_output_siv o3.x, finalQuadVeq1EdgeTessFactor
+                dcl_output_siv o4.x, finalQuadUInsideTessFactor
+                dcl_output_siv o5.x, finalQuadVInsideTessFactor
+                dcl_temps 1
+                
+                #line 80
+                mov r0.x, l(18.000000)  // r0.x <- tessFactor
+                mov r0.x, r0.x  // r0.x <- Output.Edges[3]
+                mov r0.y, r0.x  // r0.y <- Output.Edges[2]
+                mov r0.y, r0.y  // r0.y <- Output.Edges[1]
+                mov r0.y, r0.y  // r0.y <- Output.Edges[0]
+                mov r0.x, r0.x  // r0.x <- Output.Inside[1]
+                mov r0.x, r0.x  // r0.x <- Output.Inside[0]
+                mov o0.x, r0.y
+                mov o1.x, r0.y
+                mov o2.x, r0.y
+                mov o3.x, r0.x
+                mov o4.x, r0.x
+                mov o5.x, r0.x
+                ret 
+                // Approximately 17 instruction slots used
+                            
+            };
+            DomainShader = asm {
+                //
+                // Generated by Microsoft (R) HLSL Shader Compiler 6.3.9600.16384
+                //
+                //
+                // Buffer Definitions: 
+                //
+                // cbuffer cbSpotLight
+                // {
+                //
+                //   float4 SpotLightPos;               // Offset:    0 Size:    16 [unused]
+                //   float4 SpotLightRangeRcp;          // Offset:   16 Size:    16 [unused]
+                //   float4 SpotDirToLight;             // Offset:   32 Size:    16 [unused]
+                //   float4 SpotCosOuterCone;           // Offset:   48 Size:    16 [unused]
+                //   float4 SpotColor;                  // Offset:   64 Size:    16 [unused]
+                //   float4 SpotCosConeAttRange;        // Offset:   80 Size:    16 [unused]
+                //   float4x4 LightProjection;          // Offset:   96 Size:    64
+                //   float4 SinAngle;                   // Offset:  160 Size:    16
+                //   float4 CosAngle;                   // Offset:  176 Size:    16
+                //   float4x4 ToShadowmap;              // Offset:  192 Size:    64 [unused]
+                //
+                // }
+                //
+                //
+                // Resource Bindings:
+                //
+                // Name                                 Type  Format         Dim Slot Elements
+                // ------------------------------ ---------- ------- ----------- ---- --------
+                // cbSpotLight                       cbuffer      NA          NA    8        1
+                //
+                //
+                //
+                // Patch Constant signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_TessFactor            0   x           0 QUADEDGE   float       
+                // SV_TessFactor            1   x           1 QUADEDGE   float       
+                // SV_TessFactor            2   x           2 QUADEDGE   float       
+                // SV_TessFactor            3   x           3 QUADEDGE   float       
+                // SV_InsideTessFactor      0   x           4  QUADINT   float       
+                // SV_InsideTessFactor      1   x           5  QUADINT   float       
+                //
+                //
+                // Input signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // POSITION                 0   xyz         0     NONE   float       
+                //
+                //
+                // Output signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_POSITION              0   xyzw        0      POS   float   xyzw
+                // TEXCOORD                 0   xyz         1     NONE   float   xyz 
+                //
+                // Tessellation Domain   # of control points
+                // -------------------- --------------------
+                // Quadrilateral                           4
+                //
+                ds_5_0
+                dcl_input_control_point_count 4
+                dcl_tessellator_domain domain_quad
+                dcl_globalFlags refactoringAllowed | skipOptimization
+                dcl_constantbuffer cb8[12], immediateIndexed
+                dcl_input vDomain.xy
+                dcl_output_siv o0.xyzw, position
+                dcl_output o1.xyz
+                dcl_temps 2
+                //
+                // Initial variable locations:
+                //   vpc0.x <- input.Edges[0]; 
+                //   vpc1.x <- input.Edges[1]; 
+                //   vpc2.x <- input.Edges[2]; 
+                //   vpc3.x <- input.Edges[3]; 
+                //   vpc4.x <- input.Inside[0]; 
+                //   vpc5.x <- input.Inside[1]; 
+                //   vDomain.x <- UV.x; vDomain.y <- UV.y; 
+                //   o1.x <- <SpotLightDS return value>.PositionXYW.x; o1.y <- <SpotLightDS return value>.PositionXYW.y; o1.z <- <SpotLightDS return value>.PositionXYW.z; 
+                //   o0.x <- <SpotLightDS return value>.Position.x; o0.y <- <SpotLightDS return value>.Position.y; o0.z <- <SpotLightDS return value>.Position.z; o0.w <- <SpotLightDS return value>.Position.w; 
+                //   vicp[0][0].x <- quad[0].Position.x; vicp[0][0].y <- quad[0].Position.y; vicp[0][0].z <- quad[0].Position.z; 
+                //   vicp[1][0].x <- quad[1].Position.x; vicp[1][0].y <- quad[1].Position.y; vicp[1][0].z <- quad[1].Position.z; 
+                //   vicp[2][0].x <- quad[2].Position.x; vicp[2][0].y <- quad[2].Position.y; vicp[2][0].z <- quad[2].Position.z; 
+                //   vicp[3][0].x <- quad[3].Position.x; vicp[3][0].y <- quad[3].Position.y; vicp[3][0].z <- quad[3].Position.z
+                //
+                #line 118 "D:\Project\Shader-Practice\Media\shadowmap_spotlight\hlsl.fx"
+                mul r0.xy, vDomain.xyxx, l(2.000000, -2.000000, 0.000000, 0.000000)
+                add r0.xy, r0.xyxx, l(-1.000000, 1.000000, 0.000000, 0.000000)  // r0.x <- posClipSpace.x; r0.y <- posClipSpace.y
+                
+                #line 121
+                mov r0.zw, -r0.xxxy
+                max r0.zw, r0.zzzw, r0.xxxy  // r0.z <- posClipSpaceAbs.x; r0.w <- posClipSpaceAbs.y
+                max r1.x, r0.w, r0.z  // r1.x <- maxLen
+                
+                #line 125
+                mul r0.zw, r0.zzzw, l(0.000000, 0.000000, 1.200000, 1.200000)
+                max r0.zw, r0.zzzw, l(0.000000, 0.000000, 0.000000, 0.000000)
+                min r0.zw, r0.zzzw, l(0.000000, 0.000000, 1.000000, 1.000000)  // r0.z <- posClipSpaceNoCylAbs.x; r0.w <- posClipSpaceNoCylAbs.y
+                max r1.y, r0.w, r0.z  // r1.y <- maxLenNoCapsule
+                lt r1.zw, l(0.000000, 0.000000, 0.000000, 0.000000), r0.xxxy
+                lt r0.xy, r0.xyxx, l(0.000000, 0.000000, 0.000000, 0.000000)
+                ineg r1.zw, r1.zzzw
+                iadd r0.xy, r0.xyxx, r1.zwzz
+                itof r0.xy, r0.xyxx
+                mul r0.xy, r0.zwzz, r0.xyxx  // r0.x <- posClipSpaceNoCyl.x; r0.y <- posClipSpaceNoCyl.y
+                
+                #line 130
+                mov r0.w, -r1.y
+                add r0.z, r0.w, l(1.000000)
+                dp3 r0.z, r0.xyzx, r0.xyzx
+                rsq r0.z, r0.z
+                mul r0.xy, r0.zzzz, r0.xyxx  // r0.x <- halfSpherePos.x; r0.y <- halfSpherePos.y
+                
+                #line 133
+                mul r0.xy, r0.xyxx, cb8[10].xxxx
+                mov r0.z, cb8[11].x
+                dp3 r0.w, r0.xyzx, r0.xyzx
+                rsq r0.w, r0.w
+                mul r0.xyz, r0.wwww, r0.xyzx  // r0.x <- halfSpherePos.x; r0.y <- halfSpherePos.y; r0.z <- halfSpherePos.z
+                
+                #line 136
+                mul r0.w, r1.x, l(1.200000)
+                mov r1.x, l(-1.000000)
+                add r0.w, r0.w, r1.x
+                div r0.w, r0.w, l(0.200000)
+                max r0.w, r0.w, l(0.000000)
+                min r0.w, r0.w, l(1.000000)  // r0.w <- cylinderOffsetZ
+                
+                #line 139
+                mov r1.x, -r0.w
+                add r1.x, r1.x, l(1.000000)
+                mul r1.xy, r0.xyxx, r1.xxxx  // r1.x <- posLS.x; r1.y <- posLS.y
+                mul r0.x, r0.w, cb8[11].x
+                mov r0.x, -r0.x
+                add r1.z, r0.x, r0.z  // r1.z <- posLS.z
+                mov r1.w, l(1.000000)  // r1.w <- posLS.w
+                
+                #line 143
+                dp4 r0.x, r1.xyzw, cb8[6].xyzw  // r0.x <- Output.Position.x
+                dp4 r0.y, r1.xyzw, cb8[7].xyzw  // r0.y <- Output.Position.y
+                dp4 r0.w, r1.xyzw, cb8[8].xyzw  // r0.w <- Output.Position.z
+                dp4 r0.z, r1.xyzw, cb8[9].xyzw  // r0.z <- Output.Position.w
+                mov r0.xyz, r0.xyzx  // r0.x <- Output.PositionXYW.x; r0.y <- Output.PositionXYW.y; r0.z <- Output.PositionXYW.z
+                mov o0.xyzw, r0.xywz
+                mov o1.xyz, r0.xyzx
+                ret 
+                // Approximately 46 instruction slots used
+                            
+            };
+            PixelShader = asm {
+                //
+                // Generated by Microsoft (R) HLSL Shader Compiler 6.3.9600.16384
+                //
+                //
+                // Buffer Definitions: 
+                //
+                // cbuffer cbGBufferUnpack
+                // {
+                //
+                //   float4 PerspectiveValues;          // Offset:    0 Size:    16
+                //   float4x4 ViewInv;                  // Offset:   16 Size:    64
+                //
+                // }
+                //
+                // cbuffer cbSpotLight
+                // {
+                //
+                //   float4 SpotLightPos;               // Offset:    0 Size:    16
+                //   float4 SpotLightRangeRcp;          // Offset:   16 Size:    16
+                //   float4 SpotDirToLight;             // Offset:   32 Size:    16
+                //   float4 SpotCosOuterCone;           // Offset:   48 Size:    16
+                //   float4 SpotColor;                  // Offset:   64 Size:    16
+                //   float4 SpotCosConeAttRange;        // Offset:   80 Size:    16
+                //   float4x4 LightProjection;          // Offset:   96 Size:    64 [unused]
+                //   float4 SinAngle;                   // Offset:  160 Size:    16 [unused]
+                //   float4 CosAngle;                   // Offset:  176 Size:    16 [unused]
+                //   float4x4 ToShadowmap;              // Offset:  192 Size:    64
+                //
+                // }
+                //
+                //
+                // Resource Bindings:
+                //
+                // Name                                 Type  Format         Dim Slot Elements
+                // ------------------------------ ---------- ------- ----------- ---- --------
+                // PCFSampler                      sampler_c      NA          NA    4        1
+                // DepthTexture                      texture   float          2d    0        1
+                // ColorSpecIntTexture               texture  float4          2d    1        1
+                // NormalTexture                     texture  float3          2d    2        1
+                // SpecPowTexture                    texture  float4          2d    3        1
+                // SpotShadowMapTexture              texture   float          2d    4        1
+                // cbGBufferUnpack                   cbuffer      NA          NA    7        1
+                // cbSpotLight                       cbuffer      NA          NA    8        1
+                //
+                //
+                //
+                // Input signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_POSITION              0   xyzw        0      POS   float   xy  
+                // TEXCOORD                 0   xyz         1     NONE   float   xyz 
+                //
+                //
+                // Output signature:
+                //
+                // Name                 Index   Mask Register SysValue  Format   Used
+                // -------------------- ----- ------ -------- -------- ------- ------
+                // SV_TARGET                0   xyzw        0   TARGET   float   xyzw
+                //
+                ps_5_0
+                dcl_globalFlags refactoringAllowed | skipOptimization
+                dcl_constantbuffer cb7[4], immediateIndexed
+                dcl_constantbuffer cb8[16], immediateIndexed
+                dcl_sampler s4, mode_comparison
+                dcl_resource_texture2d (float,float,float,float) t0
+                dcl_resource_texture2d (float,float,float,float) t1
+                dcl_resource_texture2d (float,float,float,float) t2
+                dcl_resource_texture2d (float,float,float,float) t3
+                dcl_resource_texture2d (float,float,float,float) t4
+                dcl_input_ps_siv linear noperspective v0.xy, position
+                dcl_input_ps linear v1.xyz
+                dcl_output o0.xyzw
+                dcl_temps 7
+                //
+                // Initial variable locations:
+                //   v0.x <- In.Position.x; v0.y <- In.Position.y; v0.z <- In.Position.z; v0.w <- In.Position.w; 
+                //   v1.x <- In.PositionXYW.x; v1.y <- In.PositionXYW.y; v1.z <- In.PositionXYW.z; 
+                //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
+                //
+                #line 9 "D:\Project\Shader-Practice\Media\shadowmap_spotlight\hlsl.fx"
+                mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
+                
+                #line 290
+                nop 
+                mov r0.zw, v0.xxxy
+                mov r1.xyz, v1.xyzx
+                
+                #line 271
+                nop 
+                ftoi r2.xy, r0.zwzz
+                
+                #line 201
+                mov r2.xy, r2.xyxx  // r2.x <- location3.x; r2.y <- location3.y
+                mov r2.zw, l(0,0,0,0)  // r2.w <- location3.z
+                ld_indexable(texture2d)(float,float,float,float) r0.z, r2.xyww, t0.yzxw
+                mov r0.z, r0.z  // r0.z <- depth
+                nop 
+                mov r0.z, r0.z
+                
+                #line 183
+                add r0.z, r0.z, cb7[0].w
+                div r3.z, cb7[0].z, r0.z  // r3.z <- linearDepth
+                mov r3.z, r3.z  // r3.z <- <ConvertZToLinearDepth return value>
+                
+                #line 204
+                mov r3.z, r3.z  // r3.z <- Out.LinearDepth
+                ld_indexable(texture2d)(float,float,float,float) r4.xyzw, r2.xyww, t1.xyzw  // r4.x <- baseColorSpecInt.x; r4.y <- baseColorSpecInt.y; r4.z <- baseColorSpecInt.z; r4.w <- baseColorSpecInt.w
+                mov r4.xyz, r4.xyzx  // r4.x <- Out.Color.x; r4.y <- Out.Color.y; r4.z <- Out.Color.z
+                mov r3.y, r4.w  // r3.y <- Out.SpecIntensity
+                ld_indexable(texture2d)(float,float,float,float) r5.xyz, r2.xyww, t2.xyzw
+                mov r5.xyz, r5.xyzx  // r5.x <- Out.Normal.x; r5.y <- Out.Normal.y; r5.z <- Out.Normal.z
+                mul r5.xyz, r5.xyzx, l(2.000000, 2.000000, 2.000000, 0.000000)
+                mov r6.xyz, l(-1.000000,-1.000000,-1.000000,-0.000000)
+                add r5.xyz, r5.xyzx, r6.xyzx
+                dp3 r0.z, r5.xyzx, r5.xyzx
+                rsq r0.z, r0.z
+                mul r5.xyz, r0.zzzz, r5.xyzx
+                ld_indexable(texture2d)(float,float,float,float) r3.x, r2.xyzw, t3.xzyw
+                mov r3.x, r3.x  // r3.x <- Out.SpecPow
+                mov r3.z, r3.z  // r3.z <- <UnpackGBuffer_Loc return value>.LinearDepth
+                mov r3.x, r3.x  // r3.x <- <UnpackGBuffer_Loc return value>.SpecPow
+                mov r3.y, r3.y  // r3.y <- <UnpackGBuffer_Loc return value>.SpecIntensity
+                mov r4.xyz, r4.xyzx  // r4.x <- <UnpackGBuffer_Loc return value>.Color.x; r4.y <- <UnpackGBuffer_Loc return value>.Color.y; r4.z <- <UnpackGBuffer_Loc return value>.Color.z
+                mov r5.xyz, r5.xyzx  // r5.x <- <UnpackGBuffer_Loc return value>.Normal.x; r5.y <- <UnpackGBuffer_Loc return value>.Normal.y; r5.z <- <UnpackGBuffer_Loc return value>.Normal.z
+                
+                #line 271
+                mov r4.xyz, r4.xyzx  // r4.x <- gbd.Color.x; r4.y <- gbd.Color.y; r4.z <- gbd.Color.z
+                mov r5.xyz, r5.xyzx  // r5.x <- gbd.Normal.x; r5.y <- gbd.Normal.y; r5.z <- gbd.Normal.z
+                mov r3.xyz, r3.xyzx  // r3.x <- gbd.SpecPow; r3.y <- gbd.SpecIntensity; r3.z <- gbd.LinearDepth
+                
+                #line 275
+                nop 
+                mov r4.xyz, r4.xyzx
+                mov r5.xyz, r5.xyzx
+                mov r0.zw, r3.xxxy
+                
+                #line 173
+                mov r5.xyz, r5.xyzx  // r5.x <- mat.normal.x; r5.y <- mat.normal.y; r5.z <- mat.normal.z
+                mov r4.xyz, r4.xyzx  // r4.x <- mat.diffuseColor.x; r4.y <- mat.diffuseColor.y; r4.z <- mat.diffuseColor.z
+                mul r0.y, r0.z, r0.y
+                add r0.z, r0.y, r0.x  // r0.z <- mat.specPow
+                mov r0.w, r0.w  // r0.w <- mat.specIntensity
+                
+                #line 275
+                mov r5.xyz, r5.xyzx  // r5.x <- mat.normal.x; r5.y <- mat.normal.y; r5.z <- mat.normal.z
+                mov r4.xyz, r4.xyzx  // r4.x <- mat.diffuseColor.x; r4.y <- mat.diffuseColor.y; r4.z <- mat.diffuseColor.z
+                mov r0.z, r0.z  // r0.z <- mat.specPow
+                mov r0.w, r0.w  // r0.w <- mat.specIntensity
+                
+                #line 279
+                nop 
+                div r0.xy, r1.xyxx, r1.zzzz
+                mov r3.z, r3.z
+                
+                #line 191
+                mul r0.xy, r0.xyxx, cb7[0].xyxx
+                mul r3.xy, r3.zzzz, r0.xyxx  // r3.x <- position.x; r3.y <- position.y
+                mov r3.z, r3.z  // r3.z <- position.z
+                mov r3.w, l(1.000000)  // r3.w <- position.w
+                dp4 r1.x, r3.xyzw, cb7[1].xyzw  // r1.x <- <CalcWorldPos return value>.x
+                dp4 r1.y, r3.xyzw, cb7[2].xyzw  // r1.y <- <CalcWorldPos return value>.y
+                dp4 r1.z, r3.xyzw, cb7[3].xyzw  // r1.z <- <CalcWorldPos return value>.z
+                
+                #line 279
+                mov r1.xyz, r1.xyzx  // r1.x <- position.x; r1.y <- position.y; r1.z <- position.z
+                
+                #line 282
+                nop 
+                mov r1.xyz, r1.xyzx
+                mov r5.xyz, r5.xyzx
+                mov r4.xyz, r4.xyzx
+                mov r0.zw, r0.zzzw
+                
+                #line 237
+                mov r2.xyz, -r1.xyzx
+                add r2.xyz, r2.xyzx, cb8[0].xyzx  // r2.x <- ToLight.x; r2.y <- ToLight.y; r2.z <- ToLight.z
+                mov r3.xyz, -r1.xyzx
+                mov r6.x, cb7[1].w
+                mov r6.y, cb7[2].w
+                mov r6.z, cb7[3].w
+                add r3.xyz, r3.xyzx, r6.xyzx  // r3.x <- ToEye.x; r3.y <- ToEye.y; r3.z <- ToEye.z
+                dp3 r0.x, r2.xyzx, r2.xyzx
+                sqrt r0.x, r0.x  // r0.x <- DistToLight
+                
+                #line 242
+                div r2.xyz, r2.xyzx, r0.xxxx
+                dp3 r0.y, r2.xyzx, r5.xyzx
+                max r0.y, r0.y, l(0.000000)
+                min r0.y, r0.y, l(1.000000)  // r0.y <- NDotL
+                mul r4.xyz, r0.yyyy, r4.xyzx  // r4.x <- finalColor.x; r4.y <- finalColor.y; r4.z <- finalColor.z
+                
+                #line 247
+                dp3 r0.y, r3.xyzx, r3.xyzx
+                rsq r0.y, r0.y
+                mul r3.xyz, r0.yyyy, r3.xyzx
+                add r3.xyz, r2.xyzx, r3.xyzx
+                dp3 r0.y, r3.xyzx, r3.xyzx
+                rsq r0.y, r0.y
+                mul r3.xyz, r0.yyyy, r3.xyzx  // r3.x <- HalfWay.x; r3.y <- HalfWay.y; r3.z <- HalfWay.z
+                dp3 r0.y, r3.xyzx, r5.xyzx
+                max r0.y, r0.y, l(0.000000)
+                min r0.y, r0.y, l(1.000000)  // r0.y <- NDotH
+                log r0.y, r0.y
+                mul r0.y, r0.y, r0.z
+                exp r0.y, r0.y
+                mul r0.y, r0.w, r0.y
+                add r0.yzw, r0.yyyy, r4.xxyz  // r0.y <- finalColor.x; r0.z <- finalColor.y; r0.w <- finalColor.z
+                
+                #line 253
+                dp3 r2.x, cb8[2].xyzx, r2.xyzx  // r2.x <- cosAng
+                mov r2.y, -cb8[3].x
+                add r2.x, r2.y, r2.x
+                div r2.x, r2.x, cb8[5].x
+                max r2.x, r2.x, l(0.000000)
+                min r2.x, r2.x, l(1.000000)  // r2.x <- conAtt
+                mul r2.x, r2.x, r2.x
+                nop 
+                mov r1.xyz, r1.xyzx
+                
+                #line 220
+                mov r1.w, l(1.000000)
+                dp4 r3.x, r1.xyzw, cb8[12].xyzw  // r3.x <- posShadowMap.x
+                dp4 r3.y, r1.xyzw, cb8[13].xyzw  // r3.y <- posShadowMap.y
+                dp4 r3.z, r1.xyzw, cb8[14].xyzw  // r3.z <- posShadowMap.z
+                dp4 r1.x, r1.xyzw, cb8[15].xyzw  // r1.x <- posShadowMap.w
+                
+                #line 223
+                div r1.xyz, r3.xyzx, r1.xxxx  // r1.x <- UVD.x; r1.y <- UVD.y; r1.z <- UVD.z
+                
+                #line 230
+                itof r1.w, l(0)  // r1.w <- bias
+                mov r1.w, -r1.w
+                add r1.z, r1.w, r1.z
+                sample_c_lz_indexable(texture2d)(float,float,float,float) r1.x, r1.xyxx, t4.xxxx, s4, r1.z  // r1.x <- <SpotShadowPCF return value>
+                
+                #line 257
+                mov r1.x, r1.x  // r1.x <- shadowAtt
+                
+                #line 260
+                mul r0.x, r0.x, cb8[1].x
+                max r0.x, r0.x, l(0.000000)
+                min r0.x, r0.x, l(1.000000)
+                mov r0.x, -r0.x
+                add r0.x, r0.x, l(1.000000)  // r0.x <- DistToLightNorm
+                mul r0.x, r0.x, r0.x  // r0.x <- Attn
+                mul r1.yzw, r0.xxxx, cb8[4].xxyz
+                mul r1.yzw, r2.xxxx, r1.yyzw
+                mul r1.xyz, r1.xxxx, r1.yzwy
+                mul r0.xyz, r0.yzwy, r1.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
+                mov r0.xyz, r0.xyzx  // r0.x <- <CalcSpot return value>.x; r0.y <- <CalcSpot return value>.y; r0.z <- <CalcSpot return value>.z
+                
+                #line 282
+                mov r0.xyz, r0.xyzx  // r0.x <- finalColor.x; r0.y <- finalColor.y; r0.z <- finalColor.z
+                
+                #line 285
+                mov r0.xyz, r0.xyzx  // r0.x <- <SpotLightCommonPS return value>.x; r0.y <- <SpotLightCommonPS return value>.y; r0.z <- <SpotLightCommonPS return value>.z
+                mov r0.w, l(1.000000)  // r0.w <- <SpotLightCommonPS return value>.w
+                
+                #line 290
+                mov o0.xyzw, r0.xyzw
+                ret 
+                // Approximately 131 instruction slots used
+                            
+            };
+        }
+
+    }
+
+}
+

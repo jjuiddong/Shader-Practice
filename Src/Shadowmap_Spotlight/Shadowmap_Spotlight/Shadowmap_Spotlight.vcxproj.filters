@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="shadowmap_spotlight.cpp" />
+    <ClCompile Include="gbuffer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="gbuffer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="fx">
+      <UniqueIdentifier>{c27132cd-bc00-43f4-a08a-d702b192bc00}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\Media\shadowmap_spotlight\shadowgen.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\shadowmap_spotlight\deferredshading.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\shadowmap_spotlight\dirlight.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\shadowmap_spotlight\gbuffer.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\Media\shadowmap_spotlight\hlsl.fx">
+      <Filter>fx</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>
