@@ -75,6 +75,7 @@ float4 PS(VSOUT_SPOTLIGHT In) : SV_Target
 	const float SpotCosInnerConeRcp = gCosInnerConeRcp.x;
 	const float cosAng = dot(-gLight_Direction, ToLight);
 	float conAtt = saturate((cosAng - SpotCosOuterCone) * SpotCosInnerConeRcp);
+
 	conAtt *= conAtt;
 
 	// Attenuation

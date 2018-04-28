@@ -58,7 +58,7 @@ cViewer::cViewer()
 {
 	m_windowName = L"DX11 ForwardLight - Ambient Light";
 	//const RECT r = { 0, 0, 1024, 768 };
-	const RECT r = { 0, 0, 1280, 1024 };
+	const RECT r = { 0, 0, 1280, 960 };
 	m_windowRect = r;
 	m_moveLen = 0;
 	m_LButtonDown = false;
@@ -81,7 +81,7 @@ bool cViewer::OnInit()
 	GetMainCamera().SetViewPort(WINSIZE_X, WINSIZE_Y);
 
 	m_camera.SetCamera(Vector3(-3, 10, -10), Vector3(0, 0, 0), Vector3(0, 1, 0));
-	m_camera.SetProjection(MATH_PI / 4.f, WINSIZE_X / WINSIZE_Y, 1.0f, 10000.f);
+	m_camera.SetProjection(MATH_PI / 4.f, WINSIZE_X / WINSIZE_Y, 0.1f, 10000.f);
 	m_camera.SetViewPort(WINSIZE_X, WINSIZE_Y);
 
 	m_ground.Create(m_renderer, 10, 10, 1, 1);

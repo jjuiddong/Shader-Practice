@@ -63,15 +63,15 @@ cViewer::cViewer()
 	, m_target(0, 0, 0)
 {
 	m_windowName = L"DX11 ForwardLight - Spot Light";
-	const RECT r = { 0, 0, 1280, 1024 };
+	const RECT r = { 0, 0, 1280, 960 };
 	m_windowRect = r;
 	m_moveLen = 0;
 	m_mouseDown[0] = false;
 	m_mouseDown[1] = false;
 	m_mouseDown[2] = false;
 
-	m_spotCosOuterCone.x = 0.9f;
-	m_spotCosInnerCone.x = 0.1f;
+	m_spotCosOuterCone.x = cos(MATH_PI / 4.f);
+	m_spotCosInnerCone.x = cos(MATH_PI / 8.f);
 }
 
 cViewer::~cViewer()

@@ -58,7 +58,7 @@ cViewer::cViewer()
 	, m_target(0,0,0)
 {
 	m_windowName = L"DX11 ForwardLight - Directional Light";
-	const RECT r = { 0, 0, 1280, 1024 };
+	const RECT r = { 0, 0, 1280, 960 };
 	m_windowRect = r;
 	m_moveLen = 0;
 	m_mouseDown[0] = false;
