@@ -176,7 +176,7 @@ fxgroup
                 // Initial variable locations:
                 //   o0.x <- <VS return value>.x; o0.y <- <VS return value>.y; o0.z <- <VS return value>.z; o0.w <- <VS return value>.w
                 //
-                #line 38 "C:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 38 "c:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mov o0.xyzw, l(0,0,0,1.000000)
                 ret 
                 // Approximately 2 instruction slots used
@@ -239,7 +239,7 @@ fxgroup
                 //   vPrim.x <- PatchID; 
                 //   o0.x <- <PointLightHS return value>.HemiDir.x; o0.y <- <PointLightHS return value>.HemiDir.y; o0.z <- <PointLightHS return value>.HemiDir.z
                 //
-                #line 66 "C:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 66 "c:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mov x0[0].xyz, l(1.000000,1.000000,1.000000,0)
                 mov x0[1].xyz, l(-1.000000,1.000000,-1.000000,0)
                 
@@ -366,7 +366,7 @@ fxgroup
                 //   vicp[2][0].x <- quad[2].HemiDir.x; vicp[2][0].y <- quad[2].HemiDir.y; vicp[2][0].z <- quad[2].HemiDir.z; 
                 //   vicp[3][0].x <- quad[3].HemiDir.x; vicp[3][0].y <- quad[3].HemiDir.y; vicp[3][0].z <- quad[3].HemiDir.z
                 //
-                #line 99 "C:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 99 "c:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mul r0.xy, vDomain.xyxx, l(2.000000, 2.000000, 0.000000, 0.000000)
                 mov r0.zw, l(-0.000000,-0.000000,-1.000000,-1.000000)
                 add r0.xy, r0.zwzz, r0.xyxx  // r0.x <- posClipSpace.x; r0.y <- posClipSpace.y
@@ -478,7 +478,7 @@ fxgroup
                 //   v1.x <- In.cpPos.x; v1.y <- In.cpPos.y; 
                 //   o0.x <- <PS return value>.x; o0.y <- <PS return value>.y; o0.z <- <PS return value>.z; o0.w <- <PS return value>.w
                 //
-                #line 8 "C:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
+                #line 8 "c:\Work\Project\Shader-Practice\Media\deferredshading_pointlight\hlsl.fx"
                 mov r0.xy, l(10.000000,250.000000,0,0)  // r0.x <- g_SpecPowerRange.x; r0.y <- g_SpecPowerRange.y
                 
                 #line 233

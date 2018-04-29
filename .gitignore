@@ -286,3 +286,5 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+Src/Shadowmap_Spotlight/Shadowmap_Spotlight/log.txt
+Src/Shadowmap_Spotlight/Shadowmap_Spotlight/errlog.txt
